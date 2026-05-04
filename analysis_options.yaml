@@ -1,0 +1,8 @@
+include: package:lints/recommended.yaml
+
+linter:
+  rules:
+    - prefer_single_quotes
+    - sort_child_properties_last
+    - unnecessary_this
+    - avoid_multiple_declarations_per_line
