@@ -3,9 +3,9 @@
 [![Flutter Compatible](https://img.shields.io/badge/Flutter-Compatible-blue.svg)](https://flutter.dev)
 [![Pub Package](https://img.shields.io/pub/v/cascadia.svg)](https://pub.dev/packages/cascadia)
 
-A Dart implementation of the [Cascadia](https://github.com/suntong/cascadia) CSS selector library, originally written in Go and extended with **full CSS Selectors Level 3, Level 4, and beyond** coverage per the [MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/CSS).
+A Dart implementation of the CSS Selector Library, Writte and Extended with **Full CSS Selectors Level 3, Level 4, and beyond** coverage per the [MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/CSS).
 
-**Flutter-compatible** — works in Dart VM, browsers, and Flutter apps. No browser-specific APIs; pure Dart.
+**Flutter-Compatible** — works in Dart VM, browsers, and Flutter apps. No browser-specific APIs; pure Dart.
 
 ## Features
 
@@ -32,7 +32,7 @@ Add to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  cascadia: ^0.1.0
+  cascadia: ^0.6.9
 ```
 
 ## Usage
@@ -314,17 +314,17 @@ import 'package:flutter_html/flutter_html.dart';
 
 HtmlData processHtml(String rawHtml) {
   final doc = parse(rawHtml);
-  
+
   // Remove all ads using CSS selector
   final ads = queryAll(doc, '.ad, .Advertisement, [id*="ad-"]');
   for (final ad in ads) {
     ad.remove();
   }
-  
+
   // Extract all links
   final links = queryAll(doc, 'a[href]');
   final hrefs = links.map((a) => a.attributes['href']).toList();
-  
+
   // Convert back to HTML string for flutter_html
   final cleanedHtml = doc.outerHtml;
   return HtmlData(
