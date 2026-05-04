@@ -1,7 +1,7 @@
 import 'package:cascadia/cascadia.dart';
 import 'package:html/parser.dart' as html_parser;
 
-/// Demonstrates basic Cascadia selector usage.
+/// Demonstrates basic Cascadia selector usage in Dart and Flutter.
 ///
 /// This example works in pure Dart and in Flutter apps.
 void main() {

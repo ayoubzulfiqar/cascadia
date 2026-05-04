@@ -1,4 +1,26 @@
-// Library export for Cascadia CSS selector engine.
+/// A pure-Dart CSS selector engine with full CSS Selectors Level 3 and Level 4 support.
+///
+/// This library parses CSS selector strings, matches them against DOM trees
+/// (from package:html), calculates specificity, and serializes selectors back
+/// to CSS text. It is fully compatible with Flutter and works on all Dart VM
+/// platforms (mobile, desktop, server) and the web.
+///
+/// Example:
+/// ```dart
+/// import 'package:cascadia/cascadia.dart';
+/// import 'package:html/parser.dart';
+///
+/// final doc = parseHTML('<div class="foo">Hello</div>');
+/// final matches = queryAll(doc, '.foo');
+/// ```
+///
+/// The library includes:
+/// - 78 pseudo-classes (`:first-child`, `:has()`, `:is()`, `:where()`, `:focus-visible`, etc.)
+/// - 31 pseudo-elements (`::before`, `::after`, `::first-line`, `::selection`, etc.)
+/// - All CSS3 attribute selectors and combinators
+/// - Namespace and nesting selector support
+library cascadia;
+
 export 'src/matcher.dart';
 export 'src/selectors.dart';
 export 'src/specificity.dart';

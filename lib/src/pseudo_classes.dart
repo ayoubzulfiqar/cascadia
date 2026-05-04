@@ -1269,6 +1269,9 @@ class TargetAfterPseudoClass extends PseudoClassSelector {
 
 /// :active-view-transition matches the root element during an active view transition.
 class ActiveViewTransitionPseudoClass extends PseudoClassSelector {
+  /// Creates an [ActiveViewTransitionPseudoClass] instance.
+  const ActiveViewTransitionPseudoClass();
+
   @override
   bool match(Node node) => false;
 
@@ -1278,7 +1281,10 @@ class ActiveViewTransitionPseudoClass extends PseudoClassSelector {
 
 /// :active-view-transition-type() matches the root element when a view transition of the specified type is active.
 class ActiveViewTransitionTypePseudoClass extends PseudoClassSelector {
+  /// The view transition type name.
   final String type;
+
+  /// Creates an [ActiveViewTransitionTypePseudoClass] with the given [type].
   ActiveViewTransitionTypePseudoClass(this.type);
 
   @override
@@ -1377,6 +1383,9 @@ class InterestTargetPseudoClass extends PseudoClassSelector {
 
 /// :active matches the element that is currently being activated by the user.
 class ActivePseudoClass extends PseudoClassSelector {
+  /// Creates an [ActivePseudoClass] instance.
+  const ActivePseudoClass();
+
   @override
   bool match(Node node) {
     // Activation state is runtime-only.
