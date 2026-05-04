@@ -1,6 +1,6 @@
 # Cascadia Dart
 
-A Dart implementation of the [Cascadia](https://github.com/suntong/cascadia) CSS selector library, originally written in Go and extended with **full CSS Selectors Level 3, Level 4, and beyond** coverage per the [MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/CSS).
+A Dart implementation of CSS selector library extended with **full CSS Selectors Level 3, Level 4, and beyond** coverage per the [MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/CSS).
 
 ## Features
 
