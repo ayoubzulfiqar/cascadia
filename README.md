@@ -1,6 +1,11 @@
 # Cascadia Dart
 
-A Dart implementation of CSS selector library extended with **full CSS Selectors Level 3, Level 4, and beyond** coverage per the [MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/CSS).
+[![Flutter Compatible](https://img.shields.io/badge/Flutter-Compatible-blue.svg)](https://flutter.dev)
+[![Pub Package](https://img.shields.io/pub/v/cascadia.svg)](https://pub.dev/packages/cascadia)
+
+A Dart implementation of the [Cascadia](https://github.com/suntong/cascadia) CSS selector library, originally written in Go and extended with **full CSS Selectors Level 3, Level 4, and beyond** coverage per the [MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/CSS).
+
+**Flutter-compatible** — works in Dart VM, browsers, and Flutter apps. No browser-specific APIs; pure Dart.
 
 ## Features
 
@@ -262,6 +267,74 @@ parse('*|a');                // a in any namespace
 // The & selector references parent selector(s) in nested CSS
 final nesting = parse('.card &');  // parent selector inside nested rule
 ```
+
+## Flutter Integration
+
+Cascadia works seamlessly in Flutter apps—pure Dart, no browser dependencies. Use it to parse and query HTML/XML data fetched from networks, assets, or generated locally.
+
+### With `package:html` (Pure Dart)
+
+```dart
+import 'package:cascadia/cascadia.dart';
+import 'package:html/parser.dart';
+
+Future<List<Element>> fetchArticles(String htmlString) async {
+  final document = parse(htmlString);
+  // Select all article elements with class "post"
+  return queryAll(document, 'article.post');
+}
+
+// Use in a Flutter widget:
+FutureBuilder<List<Element>>(
+  future: fetchArticles(htmlResponse),
+  builder: (context, snapshot) {
+    if (snapshot.hasData) {
+      return ListView(
+        children: snapshot.data!
+            .map((el) => ListTile(
+                  title: Text(el.querySelector('h2')?.text ?? ''),
+                  subtitle: Text(el.querySelector('p')?.text ?? ''),
+                ))
+            .toList(),
+      );
+    }
+    return CircularProgressIndicator();
+  },
+);
+```
+
+### With `flutter_html` package
+
+If you're using the [`flutter_html`](https://pub.dev/packages/flutter_html) package to render HTML in Flutter, you can pre-process the HTML with Cascadia to manipulate or extract data before rendering.
+
+```dart
+import 'package:cascadia/cascadia.dart';
+import 'package:html/parser.dart';
+import 'package:flutter_html/flutter_html.dart';
+
+HtmlData processHtml(String rawHtml) {
+  final doc = parse(rawHtml);
+  
+  // Remove all ads using CSS selector
+  final ads = queryAll(doc, '.ad, .Advertisement, [id*="ad-"]');
+  for (final ad in ads) {
+    ad.remove();
+  }
+  
+  // Extract all links
+  final links = queryAll(doc, 'a[href]');
+  final hrefs = links.map((a) => a.attributes['href']).toList();
+  
+  // Convert back to HTML string for flutter_html
+  final cleanedHtml = doc.outerHtml;
+  return HtmlData(
+    html: cleanedHtml,
+    linkCount: hrefs.length,
+  );
+}
+```
+
+Cascadia's selector engine is fast, supports full CSS selectors, and works entirely offline—ideal for Flutter mobile/desktop apps.
 
 ## Supported Selectors
 
