@@ -19,6 +19,7 @@
 /// - 31 pseudo-elements (`::before`, `::after`, `::first-line`, `::selection`, etc.)
 /// - All CSS3 attribute selectors and combinators
 /// - Namespace and nesting selector support
+library cascadia;
 
 export 'src/matcher.dart';
 export 'src/selectors.dart';
