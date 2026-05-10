@@ -341,21 +341,21 @@ Cascadia's selector engine is fast, supports full CSS selectors, and works entir
 ### Type, Class, ID, Universal
 
 | Selector            | Example    | Description              |
-| ------------------- | ---------- | ------------------------ | ------------------------ |
+| ------------------- | ---------- | ------------------------ |
 | Type selector       | `div`      | Element by tag name      |
 | Universal selector  | `*`        | Any element              |
 | Class selector      | `.warning` | Class attribute contains |
 | ID selector         | `#header`  | ID attribute matches     |
-| Namespace separator | `svg       | circle`                  | Namespace-qualified name |
+| Namespace separator | `svg\|circle` | Namespace-qualified name |
 
 ### Attribute Selectors
 
 | Selector        | Example             | Description                     |
-| --------------- | ------------------- | ------------------------------- | ------- | ------------------------- |
+| --------------- | ------------------- | ------------------------------- |
 | `[attr]`        | `[disabled]`        | Attribute present               |
 | `[attr=value]`  | `[type="text"]`     | Exact value                     |
 | `[attr~=value]` | `[class~="active"]` | Whitespace-separated word       |
-| `[attr          | =value]`            | `[lang                          | ="en"]` | Value or `value-*` prefix |
+| `[attr\|=value]` | `[lang\|="en"]` | Value or `value-*` prefix |
 | `[attr^=value]` | `[href^="https"]`   | Starts with                     |
 | `[attr$=value]` | `[src$=".png"]`     | Ends with                       |
 | `[attr*=value]` | `[title*="info"]`   | Contains substring              |
