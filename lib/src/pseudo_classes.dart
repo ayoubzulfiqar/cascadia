@@ -476,7 +476,7 @@ class RootPseudoClass extends PseudoClassSelector {
 // LINK / LANGUAGE / INPUT
 // ============================================================================
 
-/// :link matches unvisited links (a[href], area[href], link[href]).
+/// :link matches unvisited links (`a[href]`, `area[href]`, `link[href]`).
 class LinkPseudoClass extends PseudoClassSelector {
   @override
   bool match(Node node) {
@@ -491,7 +491,7 @@ class LinkPseudoClass extends PseudoClassSelector {
   String toString() => ':link';
 }
 
-/// :visited matches visited links (a[href], area[href]).
+/// :visited matches visited links (`a[href]`, `area[href]`).
 ///
 /// Due to privacy restrictions, the matched state is not exposed to scripts.
 class VisitedPseudoClass extends PseudoClassSelector {
@@ -758,13 +758,41 @@ class DirPseudoClass extends PseudoClassSelector {
 // FORM VALIDATION PSEUDO-CLASSES
 // ============================================================================
 
-enum ValidityState { valid, invalid }
+/// Validation state for form validity pseudo-classes.
+enum ValidityState {
+  /// Element is valid.
+  valid,
 
-enum RequiredState { required, optional }
+  /// Element is invalid.
+  invalid,
+}
 
-enum ReadOnlyState { readOnly, readWrite }
+/// Requiredness state for form pseudo-classes.
+enum RequiredState {
+  /// Element is required.
+  required,
 
-enum RangeState { inRange, outOfRange }
+  /// Element is optional.
+  optional,
+}
+
+/// Editability state for read-only/read-write pseudo-classes.
+enum ReadOnlyState {
+  /// Element is read-only.
+  readOnly,
+
+  /// Element is read-write (editable).
+  readWrite,
+}
+
+/// Range state for in-range/out-of-range pseudo-classes.
+enum RangeState {
+  /// Value is within the specified range.
+  inRange,
+
+  /// Value is outside the specified range.
+  outOfRange,
+}
 
 /// :valid / :invalid - matches based on form validation status.
 class ValidityPseudoClass extends PseudoClassSelector {
@@ -955,7 +983,7 @@ class FullscreenPseudoClass extends PseudoClassSelector {
   String toString() => ':fullscreen';
 }
 
-/// :open matches elements that are "open" (details[open], select[open], dialog[open]).
+/// :open matches elements that are "open" (`details[open]`, `select[open]`, `dialog[open]`).
 class OpenPseudoClass extends PseudoClassSelector {
   @override
   bool match(Node node) {
@@ -991,6 +1019,8 @@ class AnchorPseudoClass extends PseudoClassSelector {
 }
 
 /// :has-anchor pseudo-class matches elements that have at least one anchor.
+///
+/// This is part of the CSS Anchor Positioning Module Level 1.
 class HasAnchorPseudoClass extends PseudoClassSelector {
   @override
   bool match(Node node) {
@@ -1054,6 +1084,7 @@ class PrevSiblingPseudoClass extends PseudoClassSelector {
   String toString() => ':prev-sibling';
 }
 
+/// :next-sibling matches the immediately following sibling element in a relative selector chain.
 class NextSiblingPseudoClass extends PseudoClassSelector {
   @override
   bool match(Node node) {
@@ -1482,6 +1513,7 @@ class XROverlayPseudoClass extends PseudoClassSelector {
 
 /// Classic pseudo-elements
 
+/// ::before pseudo-element matches generated content before an element.
 class BeforePseudoElement extends PseudoClassSelector {
   @override
   bool match(Node node) => false;
@@ -1493,6 +1525,7 @@ class BeforePseudoElement extends PseudoClassSelector {
   String toString() => '::before';
 }
 
+/// ::after pseudo-element matches generated content after an element.
 class AfterPseudoElement extends PseudoClassSelector {
   @override
   bool match(Node node) => false;
@@ -1504,6 +1537,7 @@ class AfterPseudoElement extends PseudoClassSelector {
   String toString() => '::after';
 }
 
+/// ::first-letter pseudo-element matches the first letter of a block-level element.
 class FirstLetterPseudoElement extends PseudoClassSelector {
   @override
   bool match(Node node) => false;
@@ -1515,6 +1549,7 @@ class FirstLetterPseudoElement extends PseudoClassSelector {
   String toString() => '::first-letter';
 }
 
+/// ::first-line pseudo-element matches the first line of a block-level element.
 class FirstLinePseudoElement extends PseudoClassSelector {
   @override
   bool match(Node node) => false;
@@ -1526,6 +1561,7 @@ class FirstLinePseudoElement extends PseudoClassSelector {
   String toString() => '::first-line';
 }
 
+/// ::target-text pseudo-element matches the text that is targeted by a fragment.
 class TargetTextPseudoElement extends PseudoClassSelector {
   @override
   bool match(Node node) => false;
@@ -1748,6 +1784,7 @@ class BackdropPseudoElement extends PseudoClassSelector {
 
 /// ::cue matches captions/cues in media elements.
 class CuePseudoElement extends PseudoClassSelector {
+  /// The optional cue name for selecting specific cues by name.
   final String? name;
 
   CuePseudoElement([this.name]);
@@ -1797,6 +1834,7 @@ abstract class ViewTransitionPseudoElement extends PseudoClassSelector {
   String toString() => '::$name';
 }
 
+/// ::view-transition pseudo-element represents the root view transition element.
 class ViewTransitionRootPseudoElement extends PseudoClassSelector {
   @override
   bool match(Node node) {
@@ -1810,6 +1848,7 @@ class ViewTransitionRootPseudoElement extends PseudoClassSelector {
   String toString() => '::view-transition';
 }
 
+/// ::view-transition-group pseudo-element groups the old and new views during transition.
 class ViewTransitionGroupPseudoElement extends PseudoClassSelector {
   final String name;
 
@@ -1827,6 +1866,7 @@ class ViewTransitionGroupPseudoElement extends PseudoClassSelector {
   String toString() => '::view-transition-group($name)';
 }
 
+/// ::view-transition-image-pair pseudo-element pairs old and new images during transition.
 class ViewTransitionImagePairPseudoElement extends PseudoClassSelector {
   final String name;
 
@@ -1844,6 +1884,7 @@ class ViewTransitionImagePairPseudoElement extends PseudoClassSelector {
   String toString() => '::view-transition-image-pair($name)';
 }
 
+/// ::view-transition-old pseudo-element represents the old snapshot during transition.
 class ViewTransitionOldPseudoElement extends PseudoClassSelector {
   final String name;
 
@@ -1861,6 +1902,7 @@ class ViewTransitionOldPseudoElement extends PseudoClassSelector {
   String toString() => '::view-transition-old($name)';
 }
 
+/// ::view-transition-new pseudo-element represents the new snapshot during transition.
 class ViewTransitionNewPseudoElement extends PseudoClassSelector {
   final String name;
 
