@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.7.6 - 2026-05-10
+
+### Documentation
+- Added comprehensive dartdoc comments for all pseudo-class and pseudo-element
+  classes, improving pub.dev documentation score from 10/20 to 20/20
+- Fixed markdown table formatting in README for proper pub.dev rendering
+- Updated documentation to use consistent code formatting and notation
+
+### Build
+- Declared supported platforms (android, ios, linux, macos, windows, web) in
+  pubspec.yaml to improve platform support score from 0/20 to 20/20
+- Added `.pubignore` to exclude tool/ directory from package publication
+- Updated `.gitignore` to properly exclude build artifacts
+
 ## 0.6.9 - 2026-05-04
 
 ### Added
