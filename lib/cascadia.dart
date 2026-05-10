@@ -1,11 +1,3 @@
-/// A pure-Dart CSS selector engine with full CSS Selectors Level 3 and Level 4 support.
-///
-/// This library parses CSS selector strings, matches them against DOM trees
-/// (from package:html), calculates specificity, and serializes selectors back
-/// to CSS text. It is fully compatible with Flutter and works on all Dart VM
-/// platforms (mobile, desktop, server) and the web.
-library cascadia;
-
 export 'src/matcher.dart';
 export 'src/selectors.dart';
 export 'src/specificity.dart';
