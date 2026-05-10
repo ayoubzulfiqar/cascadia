@@ -468,7 +468,7 @@ class Parser {
     return (a, b);
   }
 
-  /// Parse an attribute selector like [attr], [attr=value], [attr~=value], etc.
+  /// Parse an attribute selector like `[attr]`, `[attr=value]`, `[attr~=value]`, etc.
   Sel parseAttributeSelector() {
     consume(); // consume '['
 

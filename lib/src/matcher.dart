@@ -10,7 +10,7 @@ abstract class Matcher {
   /// Returns true if this selector matches the given [node].
   bool match(Node node);
 
-  /// The specificity of this selector as a triple [A, B, C].
+  /// The specificity of this selector as a triple `(A, B, C)`.
   Specificity get specificity;
 
   /// Returns the name of the pseudo-element if this selector represents

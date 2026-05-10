@@ -1,4 +1,4 @@
-/// Represents CSS selector specificity as a triple [A, B, C] where:
+/// Represents CSS selector specificity as a triple `(A, B, C)` where:
 /// - A: number of ID selectors
 /// - B: number of class selectors, attribute selectors, and pseudo-classes
 /// - C: number of type selectors and pseudo-elements
