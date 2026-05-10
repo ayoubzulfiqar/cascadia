@@ -1,0 +1,4 @@
+# Ignore tool-specific files not needed in the published package
+tool/
+*.g.dart
+*.generated.dart
