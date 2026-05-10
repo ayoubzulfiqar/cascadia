@@ -4,21 +4,6 @@
 /// (from package:html), calculates specificity, and serializes selectors back
 /// to CSS text. It is fully compatible with Flutter and works on all Dart VM
 /// platforms (mobile, desktop, server) and the web.
-///
-/// Example:
-/// ```dart
-/// import 'package:cascadia/cascadia.dart';
-/// import 'package:html/parser.dart';
-///
-/// final doc = parseHTML('<div class="foo">Hello</div>');
-/// final matches = queryAll(doc, '.foo');
-/// ```
-///
-/// The library includes:
-/// - 78 pseudo-classes (`:first-child`, `:has()`, `:is()`, `:where()`, `:focus-visible`, etc.)
-/// - 31 pseudo-elements (`::before`, `::after`, `::first-line`, `::selection`, etc.)
-/// - All CSS3 attribute selectors and combinators
-/// - Namespace and nesting selector support
 library cascadia;
 
 export 'src/matcher.dart';
@@ -34,12 +19,15 @@ export 'src/pseudo_classes.dart';
 // Serialization utilities
 export 'src/serialize.dart';
 
-import 'package:html/dom.dart';
+import 'package:html/dom.dart' show Node, Element;
 
-import 'src/dom_compat.dart';
 import 'src/matcher.dart';
 import 'src/parser.dart';
 import 'src/serialize.dart';
+
+// Cache for parsed selectors to avoid re-parsing (memoization for memory/performance)
+final Map<String, Sel> _parseCache = <String, Sel>{};
+const int _maxCacheSize = 2048;
 
 /// Parse a CSS selector string into a [Sel] object.
 ///
@@ -52,8 +40,9 @@ import 'src/serialize.dart';
 /// ```
 ///
 /// Throws [FormatException] if the selector syntax is invalid.
+/// Uses internal caching for frequently used selectors.
 Sel parse(String selector) {
-  return Parser.parse(selector);
+  return _cachedParse(selector, acceptPseudoElements: false);
 }
 
 /// Parse a CSS selector group (comma-separated list) into a [Sel].
@@ -65,7 +54,23 @@ Sel parse(String selector) {
 /// final group = parseGroup('div, span.foo, #bar');
 /// ```
 Sel parseGroup(String selector) {
-  return Parser.parseGroup(selector);
+  return _cachedParse(selector, acceptPseudoElements: false);
+}
+
+/// Internal cached parse function with LRU-like eviction.
+Sel _cachedParse(String selector, {required bool acceptPseudoElements}) {
+  if (acceptPseudoElements) {
+    return Parser.parseWithPseudoElements(selector);
+  }
+  final cached = _parseCache[selector];
+  if (cached != null) return cached;
+  final result = Parser.parse(selector);
+  // Simple LRU: if cache is full, clear oldest entries
+  if (_parseCache.length >= _maxCacheSize) {
+    _parseCache.removeWhere((key, value) => true); // Clear cache when full
+  }
+  _parseCache[selector] = result;
+  return result;
 }
 
 /// Compile a CSS selector into a reusable matching function.
@@ -80,7 +85,7 @@ Sel parseGroup(String selector) {
 /// final matches = doc.querySelectorAll('*').where(matcher);
 /// ```
 Selector compile(String selector) {
-  return Parser.parse(selector).asFunction();
+  return _cachedParse(selector, acceptPseudoElements: false).asFunction();
 }
 
 /// Parse a selector with pseudo-element support enabled.
@@ -137,8 +142,8 @@ List<Element> queryAll(Node root, String selector) {
 /// This is the low-level version that takes a pre-compiled selector function.
 Node? _queryNode(Node root, Selector matcher) {
   if (matcher(root)) return root;
-  for (var child = root.firstChild; child != null; child = child.nextSibling) {
-    final result = _queryNode(child, matcher);
+  for (var i = 0; i < root.nodes.length; i++) {
+    final result = _queryNode(root.nodes[i], matcher);
     if (result != null) return result;
   }
   return null;
@@ -149,8 +154,8 @@ void _collectMatches(Node root, Selector matcher, List<Element> results) {
   if (matcher(root) && root is Element) {
     results.add(root);
   }
-  for (var child = root.firstChild; child != null; child = child.nextSibling) {
-    _collectMatches(child, matcher, results);
+  for (var i = 0; i < root.nodes.length; i++) {
+    _collectMatches(root.nodes[i], matcher, results);
   }
 }
 
@@ -165,7 +170,7 @@ void _collectMatches(Node root, Selector matcher, List<Element> results) {
 /// }
 /// ```
 bool matches(Node node, String selector) {
-  return Parser.parse(selector).match(node);
+  return _cachedParse(selector, acceptPseudoElements: false).match(node);
 }
 
 /// Serialize a [Sel] back to a CSS selector string.

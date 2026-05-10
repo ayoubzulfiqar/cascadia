@@ -3,6 +3,9 @@ import 'package:html/dom.dart';
 import 'matcher.dart';
 import 'specificity.dart';
 
+/// Pre-compiled regex pattern for whitespace splitting (shared across all matches)
+final RegExp _whitespacePattern = RegExp(r'\s+');
+
 /// A type selector that matches elements by tag name.
 ///
 /// Example: `div`, `p`, `span`
@@ -66,17 +69,20 @@ class TagSelector implements Sel {
 /// Specificity: (0, 1, 0)
 class ClassSelector implements Sel {
   final String className;
+  final String _lowerClassName;
 
-  ClassSelector(this.className);
+  ClassSelector(this.className) : _lowerClassName = className.toLowerCase();
 
   @override
   bool match(Node node) {
     if (node is! Element) return false;
     final classAttr = node.attributes['class'];
     if (classAttr == null) return false;
-    // Split on whitespace and check for exact match (case-insensitive)
-    final classes = classAttr.split(RegExp(r'\s+'));
-    return classes.any((c) => c.toLowerCase() == className.toLowerCase());
+    // Use cached regex pattern for performance
+    for (final c in classAttr.split(_whitespacePattern)) {
+      if (c.toLowerCase() == _lowerClassName) return true;
+    }
+    return false;
   }
 
   @override
@@ -191,7 +197,11 @@ class AttributeSelector implements Sel {
       case AttrOp.equal:
         return target == pattern;
       case AttrOp.includes:
-        return target.split(RegExp(r'\s+')).any((token) => token == pattern);
+        // Use cached regex pattern for performance
+        for (final token in target.split(_whitespacePattern)) {
+          if (token == pattern) return true;
+        }
+        return false;
       case AttrOp.dashMatch:
         return target == pattern || target.startsWith('$pattern-');
       case AttrOp.prefix:

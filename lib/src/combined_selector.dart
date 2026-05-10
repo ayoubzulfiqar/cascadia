@@ -117,28 +117,46 @@ class CombinedSelector implements Sel {
     final parent = node.parentNode;
     if (parent == null) return false;
 
-    // Collect all element children of the parent in order.
-    final siblings = <Element>[];
-    for (var child in parent.nodes) {
-      if (child is Element) siblings.add(child);
-    }
-
-    // Find index of this node among element siblings using identity.
-    int idx = -1;
-    for (int i = 0; i < siblings.length; i++) {
-      if (identical(siblings[i], node)) {
-        idx = i;
-        break;
+    // Iterate through siblings to find index and check preceding elements
+    int foundIdx = -1;
+    int idx = 0;
+    
+    // First pass: find the index of this node among element siblings
+    for (var i = 0; i < parent.nodes.length; i++) {
+      final child = parent.nodes[i];
+      if (child is Element) {
+        if (identical(child, node)) {
+          foundIdx = idx;
+          break;
+        }
+        idx++;
       }
     }
-    if (idx == -1) return false;
+    if (foundIdx == -1) return false;
 
+    // Second pass: check preceding siblings
     if (adjacent) {
-      if (idx == 0) return false;
-      return first.match(siblings[idx - 1]);
+      if (foundIdx == 0) return false;
+      // Find the immediate previous sibling
+      idx = 0;
+      for (var i = 0; i < parent.nodes.length; i++) {
+        final child = parent.nodes[i];
+        if (child is Element) {
+          if (idx == foundIdx - 1) return first.match(child);
+          idx++;
+        }
+      }
+      return false;
     } else {
-      for (int i = 0; i < idx; i++) {
-        if (first.match(siblings[i])) return true;
+      // Check all preceding siblings
+      int checkIdx = 0;
+      for (var i = 0; i < parent.nodes.length; i++) {
+        final child = parent.nodes[i];
+        if (child is Element) {
+          if (checkIdx == foundIdx) break;
+          if (first.match(child)) return true;
+          checkIdx++;
+        }
       }
       return false;
     }

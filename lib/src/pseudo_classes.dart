@@ -162,9 +162,8 @@ class ContainsPseudoClass extends PseudoClassSelector {
 
   String _ownText(Node node) {
     final buffer = StringBuffer();
-    for (var child = node.firstChild;
-        child != null;
-        child = child.nextSibling) {
+    for (var i = 0; i < node.nodes.length; i++) {
+      final child = node.nodes[i];
       if (child is Text) buffer.write(child.text);
     }
     return buffer.toString();
@@ -174,10 +173,8 @@ class ContainsPseudoClass extends PseudoClassSelector {
     if (node is Text) {
       buffer.write(node.text);
     } else {
-      for (var child = node.firstChild;
-          child != null;
-          child = child.nextSibling) {
-        _collectText(child, buffer);
+      for (var i = 0; i < node.nodes.length; i++) {
+        _collectText(node.nodes[i], buffer);
       }
     }
   }
@@ -210,9 +207,8 @@ class MatchesPseudoClass extends PseudoClassSelector {
 
   String _ownText(Node node) {
     final buffer = StringBuffer();
-    for (var child = node.firstChild;
-        child != null;
-        child = child.nextSibling) {
+    for (var i = 0; i < node.nodes.length; i++) {
+      final child = node.nodes[i];
       if (child is Text) buffer.write(child.text);
     }
     return buffer.toString();
@@ -222,10 +218,8 @@ class MatchesPseudoClass extends PseudoClassSelector {
     if (node is Text) {
       buffer.write(node.text);
     } else {
-      for (var child = node.firstChild;
-          child != null;
-          child = child.nextSibling) {
-        _collectText(child, buffer);
+      for (var i = 0; i < node.nodes.length; i++) {
+        _collectText(node.nodes[i], buffer);
       }
     }
   }
@@ -281,18 +275,30 @@ class NthPseudoClass extends PseudoClassSelector {
   bool match(Node node) {
     if (node.parentNode == null) return false;
 
-    final siblings = _getSiblingElements(node);
-
-    // Find position among siblings (1-based)
+    // Compute position from start and total count in one pass
     int posFromStart = 0;
-    for (final sibling in siblings) {
-      posFromStart++;
-      if (sibling == node) break;
-    }
-    if (posFromStart == 0) return false;
+    int totalMatching = 0;
+    Element? foundNode;
+    final nodeTag = (node as Element).localName ?? '';
+    final parent = node.parentNode!;
 
-    // Convert to position from end if needed
-    int position = last ? (siblings.length - posFromStart + 1) : posFromStart;
+    for (var i = 0; i < parent.nodes.length; i++) {
+      final sibling = parent.nodes[i];
+      if (sibling is Element) {
+        if (!ofType || (sibling.localName ?? '') == nodeTag) {
+          totalMatching++;
+          if (identical(sibling, node)) {
+            foundNode = sibling;
+            posFromStart = totalMatching; // Position from start when found
+          }
+        }
+      }
+    }
+
+    if (foundNode == null) return false;
+
+    // Position from end for :nth-last-* pseudo-classes
+    int position = last ? (totalMatching - posFromStart + 1) : posFromStart;
 
     // Apply an+b formula: (position - b) mod a == 0 and quotient >= 0
     if (a == 0) {
@@ -303,21 +309,6 @@ class NthPseudoClass extends PseudoClassSelector {
       final quotient = diff ~/ a;
       return quotient >= 0;
     }
-  }
-
-  List<Element> _getSiblingElements(Node node) {
-    final parent = node.parentNode;
-    final result = <Element>[];
-    if (parent == null) return result;
-    for (var sibling in parent.nodes) {
-      if (sibling is! Element) continue;
-      if (ofType &&
-          (sibling.localName ?? '') != ((node as Element).localName ?? '')) {
-        continue;
-      }
-      result.add(sibling);
-    }
-    return result;
   }
 
   @override
@@ -368,21 +359,19 @@ class HeadingPseudoClass extends PseudoClassSelector {
     final parent = node.parentNode;
     if (parent == null) return false;
 
-    final siblings = <Element>[];
-    for (var child in parent.nodes) {
+    // Single pass: count and find position without intermediate list
+    int pos = 0;
+    int count = 0;
+    for (var i = 0; i < parent.nodes.length; i++) {
+      final child = parent.nodes[i];
       if (child is Element) {
         final childTag = (child.localName ?? '').toLowerCase();
         if ({'h1', 'h2', 'h3', 'h4', 'h5', 'h6'}.contains(childTag)) {
-          siblings.add(child);
+          count++;
+          if (identical(child, node)) {
+            pos = count;
+          }
         }
-      }
-    }
-
-    int pos = 0;
-    for (int i = 0; i < siblings.length; i++) {
-      if (identical(siblings[i], node)) {
-        pos = i + 1;
-        break;
       }
     }
     if (pos == 0) return false;
@@ -431,15 +420,13 @@ class OnlyChildPseudoClass extends PseudoClassSelector {
   @override
   bool match(Node node) {
     if (node.parentNode == null) return false;
+    final nodeTag = (node as Element).localName ?? '';
     int count = 0;
-    for (var sibling = node.parentNode!.firstChild;
-        sibling != null;
-        sibling = sibling.nextSibling) {
+    final parent = node.parentNode!;
+    for (var i = 0; i < parent.nodes.length; i++) {
+      final sibling = parent.nodes[i];
       if (sibling is! Element) continue;
-      if (ofType &&
-          (sibling.localName ?? '') != ((node as Element).localName ?? '')) {
-        continue;
-      }
+      if (ofType && (sibling.localName ?? '') != nodeTag) continue;
       count++;
       if (count > 1) return false;
     }
@@ -462,9 +449,8 @@ class OnlyChildPseudoClass extends PseudoClassSelector {
 class EmptyPseudoClass extends PseudoClassSelector {
   @override
   bool match(Node node) {
-    for (var child = node.firstChild;
-        child != null;
-        child = child.nextSibling) {
+    for (var i = 0; i < node.nodes.length; i++) {
+      final child = node.nodes[i];
       if (child is Element) return false;
       if (child is Text && child.text.trim().isNotEmpty) return false;
     }

@@ -3,6 +3,10 @@ import 'matcher.dart';
 import 'pseudo_classes.dart';
 import 'selectors.dart';
 
+// Pre-compiled regex patterns for performance (avoids repeated allocation in hot paths)
+final RegExp _hexCharPattern = RegExp(r'[0-9a-fA-F]');
+final RegExp _digitPattern = RegExp(r'[0-9]');
+
 /// Parses CSS selector strings into [Sel] objects.
 ///
 /// The parser follows CSS Selectors Level 3 specification with some
@@ -209,13 +213,13 @@ class Parser {
         final next = source[position];
         if (next == '\n') {
           throw FormatException('Invalid escape: newline');
-        } else if (RegExp(r'[0-9a-fA-F]').hasMatch(next)) {
+        } else if (_hexCharPattern.hasMatch(next)) {
           // Hex escape: consume up to 6 hex digits, followed by whitespace or non-hex
           consume();
           for (var i = 0; i < 5; i++) {
             if (isAtEnd()) break;
             final ch2 = peek();
-            if (RegExp(r'[0-9a-fA-F]').hasMatch(ch2)) {
+            if (_hexCharPattern.hasMatch(ch2)) {
               consume();
             } else {
               break;
@@ -357,7 +361,7 @@ class Parser {
   int parseInteger() {
     skipWhitespace();
     final start = position;
-    while (!isAtEnd() && RegExp(r'[0-9]').hasMatch(peek())) {
+    while (!isAtEnd() && _digitPattern.hasMatch(peek())) {
       consume();
     }
     if (start == position) {
@@ -404,7 +408,7 @@ class Parser {
 
     // Parse digits before 'n'
     final numStart = position;
-    while (!isAtEnd() && RegExp(r'[0-9]').hasMatch(peek())) {
+    while (!isAtEnd() && _digitPattern.hasMatch(peek())) {
       consume();
     }
     final numEnd = position; // Position after digits, before 'n'
@@ -438,7 +442,7 @@ class Parser {
           final bIsPositive = signCh == '+';
           skipWhitespace();
           final bStart = position;
-          while (!isAtEnd() && RegExp(r'[0-9]').hasMatch(peek())) {
+          while (!isAtEnd() && _digitPattern.hasMatch(peek())) {
             consume();
           }
           if (position > bStart) {
