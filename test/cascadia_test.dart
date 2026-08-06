@@ -308,14 +308,32 @@ void main() {
   });
 
   group('Modern CSS Pseudo-classes', () {
-    test(':focus-visible (stub returns false)', () {
+    test(':focus-visible is undecidable without context', () {
       final sel = parse(':focus-visible');
       expect(sel.match(Element.tag('div')), isFalse);
+      expect(sel.support, MatchSupport.requiresContext);
+      expect(sel.undecidableParts, contains(':focus-visible'));
     });
 
-    test(':target (stub returns false)', () {
-      final sel = parse(':target');
-      expect(sel.match(Element.tag('div')), isFalse);
+    test(':focus matches when the context supplies the focused element', () {
+      final doc = parseHTML('<input id="a"><input id="b">');
+      final b = query(doc, '#b')!;
+      final matches = queryAll(doc, ':focus', MatchContext(focused: b));
+      expect(matches.map((e) => e.id), ['b']);
+    });
+
+    test(':target resolves from the context URL fragment', () {
+      final doc = parseHTML('<div id="one"></div><div id="two"></div>');
+      final matches = queryAll(
+          doc, ':target', MatchContext(currentUrl: Uri.parse('page#two')));
+      expect(matches.map((e) => e.id), ['two']);
+    });
+
+    test('strict mode throws instead of silently returning false', () {
+      expect(
+          () => parse(':hover')
+              .matchWith(Element.tag('a'), MatchContext.strictEmpty),
+          throwsA(isA<UndecidableSelectorError>()));
     });
 
     test(':any-link', () {
@@ -329,13 +347,24 @@ void main() {
       expect(matches.map((e) => (e.localName ?? '')), ['a', 'area', 'link']);
     });
 
-    test(':dir(ltr)', () {
+    test(':dir(ltr) matches resolved directionality', () {
+      // Per Selectors L4, :dir() reflects an element's *resolved*
+      // directionality, which defaults to ltr and is inherited. The previous
+      // implementation only compared the literal dir attribute.
       final doc = parseHTML('''
         <div dir="ltr">LTR</div>
         <div dir="rtl">RTL</div>
       ''');
-      final matches = queryAll(doc, ':dir(ltr)');
-      expect(matches.map((e) => e.attributes['dir']), ['ltr']);
+      final ltr = queryAll(doc, 'div:dir(ltr)');
+      final rtl = queryAll(doc, 'div:dir(rtl)');
+      expect(ltr.map((e) => e.text), ['LTR']);
+      expect(rtl.map((e) => e.text), ['RTL']);
+    });
+
+    test(':dir(rtl) is inherited from an ancestor', () {
+      final doc = parseHTML('<div dir="rtl"><span>inner</span></div>');
+      expect(queryAll(doc, 'span:dir(rtl)'), hasLength(1));
+      expect(queryAll(doc, 'span:dir(ltr)'), isEmpty);
     });
   });
 
