@@ -6,9 +6,16 @@
 # https://dart.dev/guides/libraries/private-files#pubspeclock.
 pubspec.lock
 
-# Build and tool artifacts
-tool/
-
-# Generated documentation
+# Generated documentation (regenerate with `dart doc`; never commit).
+# Excluded from the published archive by .pubignore as well, since
+# .pubignore overrides .gitignore per directory.
 doc/
-*.txt
+doc_warnings.txt
+
+# Build artifacts
+*.g.dart
+*.generated.dart
+
+# NOTE: tool/ is intentionally NOT ignored. tool/audit_probe.dart is the
+# audit regression harness and is executed by CI, so it must be tracked.
+# It is kept out of the published package via .pubignore instead.
