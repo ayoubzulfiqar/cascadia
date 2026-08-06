@@ -19,3 +19,6 @@ doc_warnings.txt
 # NOTE: tool/ is intentionally NOT ignored. tool/audit_probe.dart is the
 # audit regression harness and is executed by CI, so it must be tracked.
 # It is kept out of the published package via .pubignore instead.
+
+# Coverage output
+coverage/

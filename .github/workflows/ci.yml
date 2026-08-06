@@ -28,8 +28,16 @@ jobs:
       - name: Analyze
         run: dart analyze --fatal-infos
 
-      - name: Run tests
-        run: dart test
+      - name: Run tests with coverage
+        run: dart test --coverage=coverage
+
+      - name: Enforce the coverage gate
+        run: |
+          dart pub global activate coverage
+          dart pub global run coverage:format_coverage --lcov \
+            --in=coverage --out=coverage/lcov.info --report-on=lib \
+            --check-ignore
+          dart run tool/check_coverage.dart --min=85
 
       - name: Verify audit defects stay fixed
         run: dart run tool/audit_probe.dart

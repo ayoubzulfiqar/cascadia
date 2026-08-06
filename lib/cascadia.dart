@@ -7,6 +7,7 @@ import 'src/matcher.dart';
 import 'src/parser.dart';
 
 export 'src/combined_selector.dart';
+export 'src/dom_compat.dart';
 export 'src/escape.dart' show escapeCssIdent, escapeCssString;
 export 'src/match_context.dart';
 export 'src/matcher.dart';
