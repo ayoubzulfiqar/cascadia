@@ -1,32 +1,41 @@
-/// Represents CSS selector specificity as a triple `(A, B, C)` where:
-/// - A: number of ID selectors
-/// - B: number of class selectors, attribute selectors, and pseudo-classes
-/// - C: number of type selectors and pseudo-elements
+/// CSS selector specificity as a triple `(a, b, c)`:
 ///
-/// Specificity is compared lexicographically: A > B > C.
+/// - `a` — ID selectors
+/// - `b` — class, attribute and pseudo-class selectors
+/// - `c` — type selectors and pseudo-elements
+///
+/// Compared lexicographically, `a` before `b` before `c`.
 class Specificity implements Comparable<Specificity> {
+  /// The ID-selector count.
   final int a;
+
+  /// The class/attribute/pseudo-class count.
   final int b;
+
+  /// The type-selector/pseudo-element count.
   final int c;
 
+  /// Creates a specificity triple.
   const Specificity(this.a, this.b, this.c);
 
-  /// The specificity of a universal selector (*) or pseudo-element (:where)
-  static const universal = Specificity(0, 0, 0);
+  /// Zero specificity, contributed by `:where()` and the universal selector.
+  ///
+  /// Audit **P2-4**: `*` used to be modelled as a type selector and wrongly
+  /// scored `(0,0,1)`.
+  static const zero = Specificity(0, 0, 0);
 
-  /// The specificity of a type selector (div, p, etc.)
+  /// Zero specificity. Prefer [zero].
+  static const universal = zero;
+
+  /// The specificity of a type selector or pseudo-element, `(0,0,1)`.
   static const typeSelector = Specificity(0, 0, 1);
 
-  /// The specificity of a class, attribute, or pseudo-class selector
+  /// The specificity of a class, attribute or pseudo-class, `(0,1,0)`.
   static const classSelector = Specificity(0, 1, 0);
 
-  /// The specificity of an ID selector
+  /// The specificity of an ID selector, `(1,0,0)`.
   static const idSelector = Specificity(1, 0, 0);
 
-  /// Compare specificities lexicographically.
-  ///
-  /// Returns a negative integer if this < other,
-  /// zero if equal, positive if this > other.
   @override
   int compareTo(Specificity other) {
     if (a != other.a) return a - other.a;
@@ -34,23 +43,26 @@ class Specificity implements Comparable<Specificity> {
     return c - other.c;
   }
 
-  /// Add two specificities component-wise.
-  Specificity operator +(Specificity other) {
-    return Specificity(a + other.a, b + other.b, c + other.c);
-  }
+  /// Component-wise addition.
+  Specificity operator +(Specificity other) =>
+      Specificity(a + other.a, b + other.b, c + other.c);
 
-  /// Check if this specificity is less than another.
+  /// Whether this specificity is lower than [other].
   bool operator <(Specificity other) => compareTo(other) < 0;
 
-  /// Check if this specificity is greater than another.
+  /// Whether this specificity is higher than [other].
   bool operator >(Specificity other) => compareTo(other) > 0;
 
-  /// Check if this specificity equals another.
+  /// Whether this specificity is at most [other].
+  bool operator <=(Specificity other) => compareTo(other) <= 0;
+
+  /// Whether this specificity is at least [other].
+  bool operator >=(Specificity other) => compareTo(other) >= 0;
+
   @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-    return other is Specificity && a == other.a && b == other.b && c == other.c;
-  }
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Specificity && a == other.a && b == other.b && c == other.c;
 
   @override
   int get hashCode => Object.hash(a, b, c);

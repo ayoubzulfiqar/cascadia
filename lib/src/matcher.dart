@@ -1,54 +1,92 @@
 import 'package:html/dom.dart';
 
+import 'match_context.dart';
 import 'specificity.dart';
 
-/// A selector that can match an HTML node.
-///
-/// This is the core matching interface. Implementations must provide
-/// a [match] method and a [specificity] getter.
-abstract class Matcher {
-  /// Returns true if this selector matches the given [node].
-  bool match(Node node);
+/// How well a selector can be evaluated against a static DOM.
+enum MatchSupport {
+  /// Fully decidable from the DOM alone.
+  decidable,
 
-  /// The specificity of this selector as a triple `(A, B, C)`.
-  Specificity get specificity;
+  /// Decidable only when the caller supplies runtime state via [MatchContext].
+  requiresContext,
 
-  /// Returns the name of the pseudo-element if this selector represents
-  /// a pseudo-element, or an empty string otherwise.
-  ///
-  /// Only one pseudo-element may appear per selector, and it must be
-  /// at the end of the selector.
-  String get pseudoElement;
+  /// Can never be decided, e.g. `:visited` (privacy-restricted by design).
+  neverDecidable,
 }
 
-/// A more specific selector interface that also supports serialization.
+/// A CSS selector that can be matched against a DOM node.
 ///
-/// This extends [Matcher] with a [toString] that produces valid CSS.
-abstract class Sel extends Matcher {
+/// Audit **P2-7**: this used to be split into `Matcher` and `Sel`, where
+/// `Matcher` collided with `package:matcher`/`package:test` and forced users to
+/// write `hide Matcher`. `Sel` extended it and added only `toString()`, so the
+/// two have been merged into this single type.
+abstract class Sel {
+  /// Creates a selector.
+  const Sel();
+
+  /// Whether [node] matches this selector, using no runtime context.
+  ///
+  /// Audit **P0-2/3/4**: subclasses implement [matchElement] and this method
+  /// applies the `Element` type guard once, centrally, so a `Text` or
+  /// `DocumentType` node can never reach a selector body and trigger a cast
+  /// error. Subclasses that must see non-element nodes override [matchWith].
+  bool match(Node node) => matchWith(node, MatchContext.empty);
+
+  /// Whether [node] matches, using the runtime facts in [context].
+  bool matchWith(Node node, MatchContext context) =>
+      node is Element && matchElement(node, context);
+
+  /// Whether [element] matches. Implemented by concrete selectors.
+  bool matchElement(Element element, MatchContext context);
+
+  /// The specificity of this selector as an `(a, b, c)` triple.
+  Specificity get specificity;
+
+  /// The pseudo-element attached to this selector, or `''` if there is none.
+  String get pseudoElement => '';
+
+  /// How well this selector can be evaluated. See [MatchSupport].
+  MatchSupport get support => MatchSupport.decidable;
+
+  /// The names of any parts of this selector that are not fully decidable.
+  ///
+  /// Lets callers inspect what a selector needs before relying on its result:
+  ///
+  /// ```dart
+  /// final sel = parse('a:hover');
+  /// print(sel.undecidableParts); // {':hover'}
+  /// ```
+  Set<String> get undecidableParts => const <String>{};
+
+  /// The CSS text of this selector.
   @override
   String toString();
 }
 
-/// A selector group represents a comma-separated list of selectors.
-///
-/// It matches a node if ANY of its component selectors matches.
-class SelectorGroup implements Sel {
+/// A comma-separated selector list; matches when any component matches.
+class SelectorGroup extends Sel {
+  /// The selectors in this group.
   final List<Sel> selectors;
 
+  /// Creates a selector group.
   SelectorGroup(this.selectors);
 
   @override
-  bool match(Node node) {
+  bool matchWith(Node node, MatchContext context) {
     for (final sel in selectors) {
-      if (sel.match(node)) return true;
+      if (sel.matchWith(node, context)) return true;
     }
     return false;
   }
 
   @override
+  bool matchElement(Element element, MatchContext context) =>
+      matchWith(element, context);
+
+  @override
   Specificity get specificity {
-    // For a selector group, specificity is the maximum of its components.
-    var max = Specificity(0, 0, 0);
+    var max = Specificity.zero;
     for (final sel in selectors) {
       final spec = sel.specificity;
       if (spec > max) max = spec;
@@ -57,28 +95,35 @@ class SelectorGroup implements Sel {
   }
 
   @override
-  String get pseudoElement => '';
+  String get pseudoElement =>
+      selectors.length == 1 ? selectors.first.pseudoElement : '';
 
   @override
-  String toString() {
-    return selectors.join(', ');
+  MatchSupport get support {
+    var worst = MatchSupport.decidable;
+    for (final sel in selectors) {
+      if (sel.support.index > worst.index) worst = sel.support;
+    }
+    return worst;
   }
+
+  @override
+  Set<String> get undecidableParts =>
+      {for (final sel in selectors) ...sel.undecidableParts};
+
+  @override
+  String toString() => selectors.join(', ');
 }
 
-/// A type alias for backward compatibility: a simple function that matches nodes.
-///
-/// This allows using selectors as `bool Function(Node)` in APIs that expect
-/// the original Cascadia signature.
+/// A function that tests whether a node matches a selector.
 typedef Selector = bool Function(Node);
 
-/// Convenience adapter to convert a [Sel] to a [Selector] function.
-///
-/// Example:
-/// ```dart
-/// final sel = parse('div.foo');
-/// final matcher = sel.asFunction();
-/// final matches = matcher(someNode);
-/// ```
+/// Adapts a [Sel] to a plain [Selector] function.
 extension SelAdapter on Sel {
+  /// Returns this selector as a callable predicate.
   Selector asFunction() => match;
+
+  /// Returns this selector as a predicate bound to [context].
+  Selector asFunctionWith(MatchContext context) =>
+      (node) => matchWith(node, context);
 }
