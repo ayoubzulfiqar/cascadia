@@ -1,9 +1,17 @@
 name: cascadia
-description: A Dart CSS selector library Cascadia project, extended with modern
-  CSS features.
-version: 0.7.6
+description: A Dart CSS selector engine — parse, match and serialize CSS
+  Selectors Level 3 and 4 against HTML documents.
+version: 0.8.0
 homepage: https://github.com/ayoubzulfiqar/cascadia
 repository: https://github.com/ayoubzulfiqar/cascadia
+issue_tracker: https://github.com/ayoubzulfiqar/cascadia/issues
+
+topics:
+  - css
+  - selector
+  - html
+  - dom
+  - parser
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
