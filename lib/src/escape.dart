@@ -87,6 +87,12 @@ String escapeCssIdent(String value) {
     }
     if (_isIdentChar(code)) {
       out.write(ch);
+    } else if (code <= 0x1F || code == 0x7F) {
+      // Control characters have no literal escape: `\` followed by a raw
+      // newline is invalid CSS, so a decoded U+000A must be re-emitted as a
+      // hex escape. Emitting it raw produced unparseable output for input
+      // like `i\av` (found by fuzz_test.dart).
+      out.write('\\${code.toRadixString(16)} ');
     } else {
       out.write('\\$ch');
     }
@@ -99,12 +105,12 @@ String escapeCssString(String value) {
   final out = StringBuffer('"');
   for (var i = 0; i < value.length; i++) {
     final ch = value[i];
+    final code = value.codeUnitAt(i);
     if (ch == '"' || ch == r'\') {
       out.write('\\$ch');
-    } else if (ch == '\n') {
-      out.write(r'\A ');
-    } else if (ch == '\r') {
-      out.write(r'\D ');
+    } else if (code <= 0x1F || code == 0x7F) {
+      // Raw control characters are not permitted inside a CSS string.
+      out.write('\\${code.toRadixString(16)} ');
     } else {
       out.write(ch);
     }

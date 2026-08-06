@@ -19,7 +19,7 @@ extension PseudoParsing on Parser {
 
     String? argument;
     if (peek() == '(') {
-      argument = _parseParenArgument();
+      argument = _parseParenArgument(name: name);
     }
 
     // Legacy single-colon pseudo-elements from CSS2.
@@ -32,12 +32,30 @@ extension PseudoParsing on Parser {
         allowUnknown: allowUnknownPseudoClasses);
   }
 
-  String _parseParenArgument() {
+  String _parseParenArgument({required String name}) {
     expect('(');
     final start = position;
     var depth = 1;
+    // A `/.../` regex argument is scanned as a unit: quotes inside it are
+    // literal, so treating them as string delimiters made `:matches(/a"b/)`
+    // fail as an unterminated string (found by fuzz_test.dart).
+    var inRegex = false;
     while (!isAtEnd()) {
       final ch = source[position];
+      if (inRegex) {
+        if (ch == r'\') {
+          position += 2;
+          continue;
+        }
+        if (ch == '/') inRegex = false;
+        position++;
+        continue;
+      }
+      if (ch == '/' && (name == 'matches' || name == 'matchesown')) {
+        inRegex = true;
+        position++;
+        continue;
+      }
       if (ch == '"' || ch == "'") {
         parseString();
         continue;

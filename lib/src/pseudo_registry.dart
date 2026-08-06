@@ -82,6 +82,25 @@ Sel buildPseudoClass(
     return rawArgument;
   }
 
+  /// Parses an argument that is a quoted string or a bare identifier, and
+  /// requires the whole argument to be consumed.
+  ///
+  /// The raw slice must never be used directly: for `:contains("x")` the raw
+  /// text includes the quotes, so storing it and re-quoting in `toString()`
+  /// grew the selector on every round trip (found by `fuzz_test.dart`).
+  String requireStringOrIdent() {
+    final sub = Parser(requireArg());
+    sub.skipWhitespace();
+    final ch = sub.peek();
+    final value =
+        (ch == '"' || ch == "'") ? sub.parseString() : sub.parseIdentifier();
+    sub.skipWhitespace();
+    if (!sub.isAtEnd()) {
+      throw FormatException('Invalid argument to :$name()', parser.source);
+    }
+    return value;
+  }
+
   Sel parseSelectorArg() =>
       Parser(requireArg(), allowUnknownPseudoClasses: allowUnknown)
           .parseSelectorGroup();
@@ -117,9 +136,9 @@ Sel buildPseudoClass(
 
     // Text
     case 'contains':
-      return ContainsPseudoClass(requireArg(), false);
+      return ContainsPseudoClass(requireStringOrIdent(), false);
     case 'containsown':
-      return ContainsPseudoClass(requireArg(), true);
+      return ContainsPseudoClass(requireStringOrIdent(), true);
     case 'matches':
       return MatchesPseudoClass(Parser(requireArg()).parseRegex(), false);
     case 'matchesown':
@@ -218,11 +237,11 @@ Sel buildPseudoClass(
     case 'defined':
       return const DefinedPseudoClass();
     case 'state':
-      return StatePseudoClass(requireArg());
+      return StatePseudoClass(requireStringOrIdent());
 
     // Linguistic
     case 'lang':
-      return LangPseudoClass(requireArg());
+      return LangPseudoClass(requireStringOrIdent());
     case 'dir':
       final dir = requireArg().toLowerCase();
       if (dir != 'ltr' && dir != 'rtl') {

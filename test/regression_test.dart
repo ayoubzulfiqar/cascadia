@@ -345,6 +345,45 @@ void main() {
     });
   });
 
+  group('fuzz-discovered regressions', () {
+    test('string arguments do not grow on each round trip', () {
+      // ':contains("x")' stored the raw slice including quotes, so toString()
+      // re-quoted it and the selector grew without bound.
+      for (final css in [
+        ':contains("x")',
+        ':containsown("a b")',
+        r':contains("say \"hi\"")',
+        ':lang(en)',
+        ':state(private)',
+      ]) {
+        final once = parse(css).toString();
+        expect(parse(once).toString(), once, reason: css);
+        expect(parse(parse(once).toString()).toString(), once, reason: css);
+      }
+    });
+
+    test('mismatched quoting in a string argument is rejected', () {
+      expect(() => parse(':contains("x"s)'), throwsFormatException);
+      expect(() => parse(':lang(en fr)'), throwsFormatException);
+    });
+
+    test('a quote inside a regex argument is literal', () {
+      expect(parse(':matches(/a"b/)').toString(), ':matches(/a"b/)');
+      expect(queryAll(doc('<p>a"b</p>'), 'p:matches(/a"b/)'), hasLength(1));
+    });
+
+    test('control characters re-serialize as hex escapes', () {
+      // '\a' decodes to U+000A; emitting it raw produced '\<newline>', which
+      // is invalid CSS and could not be reparsed.
+      for (final css in [r'i\av', r'.a\9 b', r'#x\1f y']) {
+        final text = parse(css).toString();
+        expect(() => parse(text), returnsNormally,
+            reason: '$css serialized to $text');
+        expect(parse(text).toString(), text, reason: css);
+      }
+    });
+  });
+
   group('performance guards', () {
     test('wide sibling lists stay fast', () {
       final sb = StringBuffer('<div>');
