@@ -382,6 +382,15 @@ void main() {
         expect(parse(text).toString(), text, reason: css);
       }
     });
+    test('a compound with a pseudo-element is never decidable', () {
+      // Found while generating the capability matrix: CompoundSelector.support
+      // ignored the pseudo-element and reported 'decidable', so 'p::before'
+      // claimed it could match an element node.
+      final sel = parseWithPseudoElements('p::before');
+      expect(sel.support, MatchSupport.neverDecidable);
+      expect(sel.undecidableParts, contains('::before'));
+      expect(sel.match(Element.tag('p')), isFalse);
+    });
   });
 
   group('performance guards', () {

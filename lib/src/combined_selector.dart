@@ -20,9 +20,13 @@ class CompoundSelector extends Sel {
 
   @override
   bool matchElement(Element element, MatchContext context) {
-    // Audit P1-7: a compound holding only a pseudo-element used to be a
-    // vacuous "all of nothing" and matched every element. A pseudo-element
-    // denotes a rendered fragment, never an element node.
+    // Audit P1-7: a pseudo-element denotes a rendered fragment, never an
+    // element node, so a compound carrying one can never match. This covers
+    // both the bare '::before' case (empty selectors, previously a vacuous
+    // "all of nothing" that matched everything) and the qualified
+    // 'p::before' case, which slipped through the original fix because only
+    // the sub-selectors were consulted.
+    if (pseudoElement.isNotEmpty) return false;
     if (selectors.isEmpty) return false;
     for (final sel in selectors) {
       if (!sel.matchWith(element, context)) return false;
@@ -42,6 +46,9 @@ class CompoundSelector extends Sel {
 
   @override
   MatchSupport get support {
+    // A compound carrying a pseudo-element denotes a rendered fragment, so it
+    // can never match an element node however decidable its other parts are.
+    if (pseudoElement.isNotEmpty) return MatchSupport.neverDecidable;
     var worst = MatchSupport.decidable;
     for (final sel in selectors) {
       if (sel.support.index > worst.index) worst = sel.support;
@@ -50,8 +57,10 @@ class CompoundSelector extends Sel {
   }
 
   @override
-  Set<String> get undecidableParts =>
-      {for (final sel in selectors) ...sel.undecidableParts};
+  Set<String> get undecidableParts => {
+        for (final sel in selectors) ...sel.undecidableParts,
+        if (pseudoElement.isNotEmpty) '::$pseudoElement',
+      };
 
   @override
   String toString() {

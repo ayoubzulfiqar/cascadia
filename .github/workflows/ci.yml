@@ -39,5 +39,8 @@ jobs:
           dart pub get -C example
           dart analyze example
 
+      - name: Verify the capability matrix is current
+        run: dart run tool/generate_capability_matrix.dart --check
+
       - name: Check publish archive
         run: dart pub publish --dry-run
