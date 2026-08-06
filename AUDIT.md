@@ -7,9 +7,10 @@
 
 ## 0. Remediation status
 
-> **All 30 defects fixed and verified.** `dart run tool/audit_probe.dart`
-> reports **38 pass / 0 fail** (3 controls + 35 defect probes); the test suite
-> is **94 passing**, up from 48. Analyzer clean, formatter clean.
+> **All 30 defects fixed and verified**, plus **6 further defects** found by
+> the follow-up hardening (§9). `dart run tool/audit_probe.dart` reports
+> **38 pass / 0 fail**; the suite is **170 passing**, up from 48; line coverage
+> is **87.4%**, gated at 85% in CI. Analyzer and formatter clean.
 
 | Severity | Count | Status |
 | --- | --- | --- |
@@ -18,6 +19,7 @@
 | **P2 — Round-trip / API** | 8 | ✅ **8 fixed** |
 | **P3 — Docs / packaging** | 6 | ✅ **6 fixed** |
 | Architecture (§2.2) | 5 | ✅ **5 addressed** |
+| **Found during remediation (§9)** | 6 | ✅ **6 fixed** |
 
 Two findings in the original report were themselves wrong and are corrected
 below: **P2-5** (`:has()` specificity) and part of **A1/A2** (probe
@@ -29,11 +31,13 @@ expectations). Both are annotated inline — see §7.
 | --- | --- |
 | `parse('svg|rect')` hung forever | Parses, matches SVG, round-trips |
 | `:first-child` crashed on text nodes | Central `Element` guard; no casts |
-| `serialize()` emitted unparseable text | Round-trip property test over 37 selectors |
+| `serialize()` emitted unparseable text | Round-trip property test + fuzzer |
 | `:has(> p)` ignored the combinator | Full relative-selector support |
 | 122 `return false` stubs | `MatchContext` + `MatchSupport` |
-| 411 KB archive (6.6 MB `doc/`) | 36 KB archive |
-| 48 tests, all passing over bugs | 94 tests incl. per-defect regressions |
+| 411 KB archive (6.6 MB `doc/`) | 43 KB archive |
+| 48 tests passing over bugs | 170 tests, 87.4% coverage, gated |
+| Hand-written "Limitations" prose | Capability matrix generated from code |
+| No CI | 7-stage CI incl. fuzz, coverage and matrix checks |
 
 ---
 
@@ -161,8 +165,9 @@ query(hp.parse('<!DOCTYPE html><html></html>'), ':root');
 **P1-6 · `:optional` matches everything.** ✅ **FIXED.** Returned `!isRequired` for any element, so `div:optional` matched.
 > **Fix:** restricted to `input`/`select`/`textarea`.
 
-**P1-7 · Bare pseudo-elements match real elements.** ✅ **FIXED.** `parseWithPseudoElements('::before').match(divElement)` returned `true` — `CompoundSelector` with an empty `selectors` list was a vacuous "all of nothing".
+**P1-7 · Bare pseudo-elements match real elements.** ✅ **FIXED** (twice — see §9). `parseWithPseudoElements('::before').match(divElement)` returned `true` — `CompoundSelector` with an empty `selectors` list was a vacuous "all of nothing".
 > **Fix:** `CompoundSelector.matchElement` returns `false` when `selectors.isEmpty`.
+> **Correction:** that fix was incomplete. It only covered the *bare* form; `p::before` still matched every `<p>`, because a non-empty selector list fell through to "all sub-selectors matched". Caught later by the capability-matrix generator (§9.5). The check is now on `pseudoElement.isNotEmpty`, covering both forms.
 
 **P1-8 · `queryAll` includes the root.** ✅ **FIXED (breaking).** `queryAll(a, 'div')` where `a` is a `<div>` returned `[a, b]`. DOM `querySelectorAll` is descendant-only.
 > **Fix:** `_descendantElements` starts from the root's children. Added `closest()` for the inclusive-ancestor case.
@@ -314,20 +319,63 @@ check is the process working.
 
 ## 8. Outstanding work
 
-Everything in the defect register is closed. Remaining items require the
-account owner or are follow-on scope from `IMPLEMENTATION_PLAN.md`:
+The defect register is closed and the follow-on engineering scope from
+`IMPLEMENTATION_PLAN.md` is complete. What remains needs the account owner.
 
-| Item | Owner | Notes |
+| Item | Status | Notes |
 | --- | --- | --- |
-| **Verified publisher transfer** | Account owner | §5 — DNS verification for `ayoubzulfiqar.com`, then Admin → Transfer. Irreversible. Now safe: the P0 hang is fixed. |
-| Publish 0.8.0 | Account owner | `dart pub publish`; dry run is clean at 36 KB |
-| Capability matrix in README | Follow-up | Generate from `MatchSupport` so the "Limitations" prose cannot drift (plan §4.2) |
-| Fuzz suite | Follow-up | Plan §4.1 — 100k random/mutated inputs asserting terminate-or-throw |
-| Coverage gate | Follow-up | Plan §4.1 — wire `dart test --coverage` into CI at ≥90% |
-| 1.0.0 | Follow-up | After the matrix and fuzzing land |
+| Fuzz suite | ✅ **Done** | ~65k inputs per run; found 3 further bugs (§9) |
+| Capability matrix | ✅ **Done** | Generated from `MatchSupport`; CI fails if stale. Found 2 more bugs (§9) |
+| Coverage gate | ✅ **Done** | 70% → **87.4%**, enforced at 85% in CI |
+| **Verified publisher transfer** | ⬜ **Owner action** | §5 — DNS verification for `ayoubzulfiqar.com`, then Admin → Transfer. Irreversible. Safe now that the P0 hang is fixed. |
+| **Publish 0.8.0** | ⬜ **Owner action** | `dart pub publish`; dry run clean at 43 KB |
+| 1.0.0 | Future | Once 0.8.0 has had real-world exposure |
 
 ---
 
-*Reproduce: `dart run tool/audit_probe.dart` — 38 pass / 0 fail (3 controls prove
-the harness can emit PASS; 35 defect probes confirm the fixes). Full suite:
-`dart test` — 94 passing. Remediation sequencing: `IMPLEMENTATION_PLAN.md`.*
+## 9. Bugs found by the follow-up work
+
+The three hardening tasks were not bookkeeping — each found real defects that
+28 targeted probes and 94 tests had missed. Recording them because the pattern
+matters: **the tools that generate or randomise found what hand-written
+assertions could not.**
+
+**Found by the fuzzer** (`test/fuzz_test.dart`, first run):
+
+1. **String arguments grew without bound.** `:contains("x")` stored the raw
+   source slice *including the quotes*, so `toString()` quoted it again. Each
+   round trip roughly doubled the escaping — 15 chars → 19 → 27 → 43. Only
+   caught because the fuzzer asserts the round-trip *property*, not merely
+   "does not crash". Arguments are now parsed rather than slurped.
+2. **A quote inside a regex broke parsing.** `:matches(/a"b/)` failed as an
+   unterminated string, because the argument scanner treated `"` as a
+   delimiter inside a regex literal.
+3. **Control characters serialized to invalid CSS.** `i\av` decodes to a
+   literal newline; `escapeCssIdent` emitted it raw as a backslash followed by
+   a real newline, which cannot be reparsed.
+
+**Found by the capability-matrix generator:**
+
+4. **`CompoundSelector.support` ignored the pseudo-element**, so `p::before`
+   reported `decidable`. Visible because the generated table showed *zero*
+   parse-only selectors, which is impossible.
+5. **`p::before` matched every `<p>` element.** Far more serious, and the same
+   root cause. My original P1-7 fix only handled the *bare* `::before` case
+   where the selector list is empty; a qualified pseudo-element still fell
+   through to "all sub-selectors matched". A defect I had marked fixed was
+   only half fixed — which is precisely why generated cross-checks earn their
+   keep.
+
+**Found by the coverage report:**
+
+6. **Dead code in `dom_compat.dart`.** The sibling and child getters were
+   shadowed by `package:html`'s own `Element` members and could never run,
+   which is why the file sat at 8%. Removed rather than shipped as
+   unreachable code.
+
+---
+
+*Reproduce: `dart run tool/audit_probe.dart` — 38 pass / 0 fail (3 controls
+prove the harness can emit PASS; 35 defect probes confirm the fixes). Full
+suite: `dart test` — **170 passing**. Coverage: `dart run
+tool/check_coverage.dart` — **87.4%**, gated at 85%.*

@@ -61,6 +61,34 @@ repository for the defect register and reproduction harness.
   (P2-8). Unknown pseudo-classes are errors; use `parseLenient()` to accept
   them.
 
+### Fixed — found by fuzzing and generated cross-checks
+
+These six were found during remediation hardening rather than by the original
+audit, and are fixed in this release:
+
+- **String pseudo-class arguments grew on every round trip.** `:contains("x")`
+  stored the raw source slice including its quotes, so serializing re-quoted
+  it and the selector text roughly doubled each time. Arguments are now parsed
+  as a string or identifier, which also makes malformed input such as
+  `:contains("x"s)` a proper error. Affected `:contains()`, `:containsown()`,
+  `:lang()` and `:state()`.
+- **A quote inside a regex broke parsing.** `:matches(/a"b/)` failed as an
+  unterminated string.
+- **Control characters serialized to invalid CSS.** An identifier containing a
+  decoded control character (for example from `\a`) was emitted with the raw
+  character, producing output that could not be reparsed. Control characters
+  are now re-emitted as hex escapes in both identifiers and strings.
+- **`p::before` matched every `<p>` element.** The earlier fix for bare
+  pseudo-elements only covered the form with an empty selector list; a
+  qualified pseudo-element still matched. A pseudo-element denotes a rendered
+  fragment and never matches an element node in either form.
+- **`CompoundSelector.support` ignored the pseudo-element**, reporting
+  `decidable` for `p::before`.
+- **Removed unreachable code** in `dom_compat.dart`: the sibling and child
+  getters were shadowed by `package:html`'s own `Element` members and could
+  never execute. `tagName` remains, and the extension is now exported from the
+  public library rather than reachable only via `package:cascadia/src/`.
+
 ### Changed — breaking
 
 - **`queryAll`/`query` no longer return the root element** (P1-8). This matches
@@ -96,12 +124,24 @@ repository for the defect register and reproduction harness.
   122 `return false` bodies collapsed into one parameterised type.
 - Tree traversal in `query`/`queryAll` is iterative, removing the stack-depth
   ceiling on deep documents.
-- Test suite expanded from 48 to 94 tests, including a per-defect regression
-  suite and a serialization round-trip property test.
-- Package archive reduced from 411 KB to 36 KB by excluding the generated
+- Test suite expanded from 48 to **170 tests**: a per-defect regression suite,
+  a serialization round-trip property test, behavioural coverage of every
+  pseudo-class module, and a fuzz suite running ~65k random and mutated
+  selectors per run.
+- Line coverage raised from 70% to **87.4%**, enforced at 85% in CI by
+  `tool/check_coverage.dart`.
+- The README's "Limitations" prose is replaced by a capability matrix
+  generated from `MatchSupport` by `tool/generate_capability_matrix.dart`;
+  CI fails if it drifts from the code. Currently 61 fully supported,
+  31 context-dependent, 12 parse-only.
+- Package archive reduced from 411 KB to 43 KB by excluding the generated
   `doc/` tree, which shipped despite being git-ignored (`.pubignore` overrides
   `.gitignore` per directory).
-- README examples are now compile-checked in `example/` so they cannot rot.
+- README examples are now compile-checked and executed in `example/` so they
+  cannot rot.
+- Added CI: format, analyze, tests with coverage, coverage gate, audit
+  harness, example analysis, capability-matrix check and a publish dry run,
+  across Dart stable and 3.0.0.
 
 ## 0.7.6 - 2026-05-10
 

@@ -1,10 +1,30 @@
 # Cascadia — Implementation Plan
 
-Remediation plan for the defects in [`AUDIT.md`](AUDIT.md). Sequenced so each phase
-is independently shippable and every fix lands with a regression test.
+Remediation plan for the defects in [`AUDIT.md`](AUDIT.md).
 
-**Baseline:** v0.7.6 · 28/28 audit probes failing · 2 unbounded loops · unverified uploader
-**Target:** v1.0.0 · full probe suite green · transferred to publisher `ayoubzulfiqar.com`
+> ## Status: complete
+>
+> **Phases 0–4 are done.** All 30 register defects fixed, plus 6 more found by
+> the hardening work (`AUDIT.md` §9). Phase 5 (verified publisher transfer)
+> needs the account owner.
+>
+> | Phase | Scope | Status |
+> | --- | --- | --- |
+> | 0 | CI + harness + watchdog | ✅ Done |
+> | 1 | Hangs, crashes, cache | ✅ Done — shipped in 0.8.0 |
+> | 2 | Matching correctness | ✅ Done — folded into 0.8.0 |
+> | 3 | API, serialization, specificity | ✅ Done — folded into 0.8.0 |
+> | 4 | Tests, docs, packaging | ✅ Done |
+> | 5 | Publisher transfer | ⬜ **Owner action** |
+>
+> Phases 1–3 were released together as **0.8.0** rather than as three separate
+> versions: the breaking changes (`queryAll` root exclusion, `Matcher`
+> removal, stricter parsing) are cheaper for users to absorb in one step than
+> spread across three releases of a package with 58 downloads/month.
+>
+> **Delivered:** 170 tests (was 48) · 87.4% coverage gated at 85% · fuzz suite
+> at ~65k inputs/run · capability matrix generated from code · 43 KB archive
+> (was 411 KB) · 7-stage CI.
 
 ---
 
