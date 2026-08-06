@@ -32,7 +32,7 @@ Add to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  cascadia: ^0.6.9
+  cascadia: ^0.8.0
 ```
 
 ## Usage
@@ -41,10 +41,10 @@ dependencies:
 
 ```dart
 import 'package:cascadia/cascadia.dart';
-import 'package:html/parser.dart';
+import 'package:html/parser.dart' as html;
 
 void main() {
-  final html = '''
+  final doc = html.parse('''
     <div class="container">
       <p class="intro">Hello</p>
       <p>World</p>
@@ -53,23 +53,26 @@ void main() {
         <li>Item 2</li>
       </ul>
     </div>
-  ''';
+  ''');
 
-  final doc = parse(html);
+  // Query with a selector string.
+  final intros = queryAll(doc, 'p.intro');
+  print('Found ${intros.length} matching nodes'); // 1
 
-  // Parse a selector
-  final sel = parse('p.intro');
+  // Query the first match only.
+  final first = query(doc, 'li');
+  print('First item: ${first?.text}'); // Item 1
 
-  // Find all matching nodes
-  final results = queryAll(doc, sel);
-  print('Found ${results.length} matching nodes'); // 1
-
-  // Or use compile for repeated matching
-  final matcher = compile('li');
-  final allLis = queryAll(doc, matcher);
+  // Pre-compile a selector for repeated matching.
+  final isListItem = compile('li');
+  final allLis = doc.querySelectorAll('*').where(isListItem);
   print('List items: ${allLis.length}'); // 2
 }
 ```
+
+> `parse()` returns a reusable `Sel`; the `query`/`queryAll` helpers take the
+> selector **as a string**. Import `package:html/parser.dart` with a prefix,
+> since it also exports a `parse` function.
 
 ### Working with Pseudo-elements
 
