@@ -1,4 +1,23 @@
-# Ignore tool-specific files not needed in the published package
+# Files excluded from the published package archive.
+#
+# NOTE: .pubignore OVERRIDES .gitignore in the same directory, so every
+# exclusion must be repeated here — audit P3-2, where doc/ shipped 800 files
+# (6.6 MB) despite being git-ignored.
+
+# Generated API documentation
+doc/
+
+# Development-only tooling and notes
 tool/
+IDEA.md
+doc_warnings.txt
+AUDIT.md
+IMPLEMENTATION_PLAN.md
+
+# Tests and CI are not needed by consumers
+test/
+.github/
+
+# Generated sources
 *.g.dart
 *.generated.dart
