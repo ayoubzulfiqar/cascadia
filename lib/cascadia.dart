@@ -1,180 +1,143 @@
+import 'dart:collection';
+
+import 'package:html/dom.dart' show Document, Element, Node;
+
+import 'src/match_context.dart';
+import 'src/matcher.dart';
+import 'src/parser.dart';
+
+export 'src/combined_selector.dart';
+export 'src/escape.dart' show escapeCssIdent, escapeCssString;
+export 'src/match_context.dart';
 export 'src/matcher.dart';
+export 'src/parser.dart' show Parser;
+export 'src/pseudo_classes.dart';
 export 'src/selectors.dart';
 export 'src/specificity.dart';
 
-// Parser and compilation
-export 'src/parser.dart';
+const int _maxCacheSize = 512;
+const int _maxCacheableLength = 512;
 
-// Pseudo-classes and pseudo-elements
-export 'src/pseudo_classes.dart';
-
-// Serialization utilities
-export 'src/serialize.dart';
-
-import 'package:html/dom.dart' show Node, Element;
-
-import 'src/matcher.dart';
-import 'src/parser.dart';
-import 'src/serialize.dart';
-
-// Cache for parsed selectors to avoid re-parsing (memoization for memory/performance)
-final Map<String, Sel> _parseCache = <String, Sel>{};
-const int _maxCacheSize = 2048;
-
-/// Parse a CSS selector string into a [Sel] object.
+/// A bounded least-recently-used cache of parsed selectors.
 ///
-/// The selector can be used for matching nodes or for serialization.
-///
-/// Example:
-/// ```dart
-/// final sel = parse('div.foo > p.bar');
-/// print(sel); // outputs: div.foo > p.bar
-/// ```
-///
-/// Throws [FormatException] if the selector syntax is invalid.
-/// Uses internal caching for frequently used selectors.
-Sel parse(String selector) {
-  return _cachedParse(selector, acceptPseudoElements: false);
-}
+/// Audit **P0-5**: the previous cache claimed to be an LRU but flushed itself
+/// entirely once full, and cached selectors of any length, so hostile input
+/// could thrash it. Insertion order in a [LinkedHashMap] gives a real LRU.
+final LinkedHashMap<String, Sel> _parseCache = LinkedHashMap<String, Sel>();
 
-/// Parse a CSS selector group (comma-separated list) into a [Sel].
-///
-/// A selector group matches if ANY of the individual selectors matches.
-///
-/// Example:
-/// ```dart
-/// final group = parseGroup('div, span.foo, #bar');
-/// ```
-Sel parseGroup(String selector) {
-  return _cachedParse(selector, acceptPseudoElements: false);
-}
-
-/// Internal cached parse function with LRU-like eviction.
-Sel _cachedParse(String selector, {required bool acceptPseudoElements}) {
-  if (acceptPseudoElements) {
-    return Parser.parseWithPseudoElements(selector);
+Sel _cachedParse(String selector) {
+  final hit = _parseCache.remove(selector);
+  if (hit != null) {
+    _parseCache[selector] = hit; // move to most-recently-used
+    return hit;
   }
-  final cached = _parseCache[selector];
-  if (cached != null) return cached;
-  final result = Parser.parse(selector);
-  // Simple LRU: if cache is full, clear oldest entries
-  if (_parseCache.length >= _maxCacheSize) {
-    _parseCache.removeWhere((key, value) => true); // Clear cache when full
+  final parsed = Parser.parse(selector);
+  if (selector.length <= _maxCacheableLength) {
+    if (_parseCache.length >= _maxCacheSize) {
+      _parseCache.remove(_parseCache.keys.first);
+    }
+    _parseCache[selector] = parsed;
   }
-  _parseCache[selector] = result;
-  return result;
+  return parsed;
 }
 
-/// Compile a CSS selector into a reusable matching function.
+/// Removes every entry from the parsed-selector cache.
+void clearSelectorCache() => _parseCache.clear();
+
+/// The number of selectors currently cached. Exposed for tests and tuning.
+int get selectorCacheSize => _parseCache.length;
+
+/// Parses [selector] into a reusable [Sel].
 ///
-/// This is equivalent to `parse(selector).asFunction()`.
-/// The returned function can be called repeatedly on nodes without
-/// re-parsing the selector.
+/// Throws a [FormatException] if the selector is not valid.
 ///
-/// Example:
 /// ```dart
-/// final matcher = compile('p.intro');
-/// final matches = doc.querySelectorAll('*').where(matcher);
+/// final sel = parse('div.foo > p');
 /// ```
-Selector compile(String selector) {
-  return _cachedParse(selector, acceptPseudoElements: false).asFunction();
-}
+Sel parse(String selector) => _cachedParse(selector);
 
-/// Parse a selector with pseudo-element support enabled.
-///
-/// By default, pseudo-elements (::before, ::after, etc.) are not allowed
-/// as they require special handling. Use this function when you need
-/// to work with pseudo-elements.
-///
-/// Example:
-/// ```dart
-/// final sel = parseWithPseudoElements('p::first-line');
-/// ```
-///
-/// Throws [FormatException] if a pseudo-element is encountered and
-/// pseudo-elements are not allowed.
-Sel parseWithPseudoElements(String selector) {
-  return Parser.parseWithPseudoElements(selector);
-}
+/// Parses [selector], which may be a comma-separated list.
+Sel parseGroup(String selector) => _cachedParse(selector);
 
-/// Find the first descendant of [root] that matches [selector].
-///
-/// This is similar to the DOM's `querySelector`, but powered by this
-/// CSS selector engine.
-///
-/// Example:
-/// ```dart
-/// final doc = parseHTML(htmlString);
-/// final first = query(doc, 'div.content');
-/// ```
-Element? query(Node root, String selector) {
-  final matcher = compile(selector);
-  return _queryNode(root, matcher) as Element?;
-}
+/// Parses [selector] with pseudo-elements such as `::before` permitted.
+Sel parseWithPseudoElements(String selector) =>
+    Parser.parseWithPseudoElements(selector);
 
-/// Find all descendants of [root] that match [selector].
+/// Parses [selector], tolerating pseudo-classes this library does not know.
 ///
-/// This is similar to the DOM's `querySelectorAll`, but uses this
-/// selector engine. Returns a list of matching [Element] nodes.
-///
-/// Example:
-/// ```dart
-/// final matches = queryAll(doc, '.highlighted');
-/// print('Found ${matches.length} matches');
-/// ```
-List<Element> queryAll(Node root, String selector) {
-  final matcher = compile(selector);
-  final results = <Element>[];
-  _collectMatches(root, matcher, results);
-  return results;
-}
+/// Useful for forward compatibility with newer CSS; unknown pseudo-classes
+/// never match.
+Sel parseLenient(String selector) =>
+    Parser.parse(selector, allowUnknownPseudoClasses: true);
 
-/// Find the first descendant of [root] that matches the compiled [matcher].
+/// Compiles [selector] into a predicate function.
+Selector compile(String selector) => _cachedParse(selector).asFunction();
+
+/// Whether [node] matches [selector].
+bool matches(Node node, String selector,
+        [MatchContext context = MatchContext.empty]) =>
+    _cachedParse(selector).matchWith(node, context);
+
+/// Returns the first descendant of [root] matching [selector], or null.
 ///
-/// This is the low-level version that takes a pre-compiled selector function.
-Node? _queryNode(Node root, Selector matcher) {
-  if (matcher(root)) return root;
-  for (var i = 0; i < root.nodes.length; i++) {
-    final result = _queryNode(root.nodes[i], matcher);
-    if (result != null) return result;
+/// Like `querySelector`, [root] itself is never returned.
+Element? query(Node root, String selector,
+    [MatchContext context = MatchContext.empty]) {
+  final sel = _cachedParse(selector);
+  for (final element in _descendantElements(root)) {
+    if (sel.matchWith(element, context)) return element;
   }
   return null;
 }
 
-/// Collect all descendants of [root] that match [matcher] into [results].
-void _collectMatches(Node root, Selector matcher, List<Element> results) {
-  if (matcher(root) && root is Element) {
-    results.add(root);
+/// Returns every descendant of [root] matching [selector].
+///
+/// Audit **P1-8**: [root] itself is excluded, matching the DOM's
+/// `querySelectorAll`. The previous implementation included it, so
+/// `queryAll(divElement, 'div')` wrongly returned the element itself.
+List<Element> queryAll(Node root, String selector,
+    [MatchContext context = MatchContext.empty]) {
+  final sel = _cachedParse(selector);
+  final results = <Element>[];
+  for (final element in _descendantElements(root)) {
+    if (sel.matchWith(element, context)) results.add(element);
   }
-  for (var i = 0; i < root.nodes.length; i++) {
-    _collectMatches(root.nodes[i], matcher, results);
+  return results;
+}
+
+/// Returns the closest inclusive ancestor of [node] matching [selector].
+Element? closest(Node node, String selector,
+    [MatchContext context = MatchContext.empty]) {
+  final sel = _cachedParse(selector);
+  for (Node? n = node; n != null; n = n.parentNode) {
+    if (n is Element && sel.matchWith(n, context)) return n;
+  }
+  return null;
+}
+
+/// Yields every descendant element of [root] in document order.
+///
+/// Iterative rather than recursive so deep documents cannot overflow the
+/// stack, and lazy so [query] can stop at the first match.
+Iterable<Element> _descendantElements(Node root) sync* {
+  final stack = <Node>[];
+  for (var i = root.nodes.length - 1; i >= 0; i--) {
+    stack.add(root.nodes[i]);
+  }
+  while (stack.isNotEmpty) {
+    final node = stack.removeLast();
+    if (node is Element) yield node;
+    if (node is Element || node is Document) {
+      for (var i = node.nodes.length - 1; i >= 0; i--) {
+        stack.add(node.nodes[i]);
+      }
+    }
   }
 }
 
-/// Check if a [node] matches the given [selector] without compilation.
+/// Serializes [sel] back to CSS text.
 ///
-/// This is a convenience function for one-off checks.
-///
-/// Example:
-/// ```dart
-/// if (matches(node, '.active')) {
-///   print('Node is active');
-/// }
-/// ```
-bool matches(Node node, String selector) {
-  return _cachedParse(selector, acceptPseudoElements: false).match(node);
-}
-
-/// Serialize a [Sel] back to a CSS selector string.
-///
-/// This is the inverse of [parse]. It converts selector objects
-/// back into their textual representation.
-///
-/// Example:
-/// ```dart
-/// final sel = parse('div.foo#bar');
-/// print(serialize(sel)); // div.foo#bar
-/// ```
-String serialize(Sel sel) {
-  return Serializer.serialize(sel);
-}
+/// Audit **§3.1**: the old `Serializer` class duplicated every `toString()`
+/// implementation and reproduced their bugs; selectors now serialize
+/// themselves.
+String serialize(Sel sel) => sel.toString();
