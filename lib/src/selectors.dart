@@ -1,86 +1,109 @@
 import 'package:html/dom.dart';
 
+import 'escape.dart';
+import 'match_context.dart';
 import 'matcher.dart';
 import 'specificity.dart';
 
-/// Pre-compiled regex pattern for whitespace splitting (shared across all matches)
 final RegExp _whitespacePattern = RegExp(r'\s+');
 
-/// A type selector that matches elements by tag name.
-///
-/// Example: `div`, `p`, `span`
-/// Specificity: (0, 0, 1)
-class TagSelector implements Sel {
-  final String tag;
+/// Well-known namespace URIs, used to resolve namespace prefixes.
+const Map<String, String> defaultNamespaces = <String, String>{
+  'html': 'http://www.w3.org/1999/xhtml',
+  'svg': 'http://www.w3.org/2000/svg',
+  'math': 'http://www.w3.org/1998/Math/MathML',
+  'xlink': 'http://www.w3.org/1999/xlink',
+  'xml': 'http://www.w3.org/XML/1998/namespace',
+  'xmlns': 'http://www.w3.org/2000/xmlns/',
+};
 
-  /// Tag names are compared case-insensitively in HTML.
-  TagSelector(this.tag);
+/// Serializes a namespace prefix: `*` and the empty prefix are literal.
+String _serializeNsPrefix(String prefix) =>
+    prefix == '*' || prefix.isEmpty ? prefix : escapeCssIdent(prefix);
+
+/// The universal selector `*`.
+///
+/// Audit **P2-4**: split out of [TagSelector] so it can carry the correct
+/// zero specificity instead of a type selector's `(0,0,1)`.
+class UniversalSelector extends Sel {
+  /// The namespace prefix, or null for "no namespace constraint".
+  final String? namespacePrefix;
+
+  /// Creates a universal selector, optionally namespace-qualified (`svg|*`).
+  const UniversalSelector({this.namespacePrefix});
 
   @override
-  bool match(Node node) {
-    if (node is! Element) return false;
+  bool matchElement(Element element, MatchContext context) =>
+      namespaceMatches(element, namespacePrefix);
 
-    // Universal selector matches any element
-    if (tag == '*') return true;
+  @override
+  Specificity get specificity => Specificity.zero;
 
-    final nodeTag = node.localName ?? '';
+  @override
+  String toString() => namespacePrefix == null
+      ? '*'
+      : '${_serializeNsPrefix(namespacePrefix!)}|*';
+}
 
-    // Check for namespace separator '|'
-    final pipeIdx = tag.indexOf('|');
-    if (pipeIdx != -1) {
-      final nsPrefix = tag.substring(0, pipeIdx);
-      final localPart = tag.substring(pipeIdx + 1);
+/// Whether [element] satisfies the namespace constraint [prefix].
+///
+/// Audit **P1-10**: namespace matching used to be dead code — the element
+/// prefix was hardcoded to `null`. It now resolves against the element's real
+/// [Element.namespaceUri].
+bool namespaceMatches(Element element, String? prefix) {
+  if (prefix == null || prefix == '*') return true;
+  final uri = element.namespaceUri;
+  if (prefix.isEmpty) {
+    // `|tag` matches only elements in no namespace.
+    return uri == null || uri.isEmpty;
+  }
+  final expected = defaultNamespaces[prefix.toLowerCase()];
+  if (expected != null) return uri == expected;
+  // Unknown prefix: compare literally so callers can use raw URIs.
+  return uri == prefix;
+}
 
-      // Local name must match
-      if (nodeTag != localPart) return false;
+/// A type selector such as `div`, or `svg|rect` when namespace-qualified.
+class TagSelector extends Sel {
+  /// The local element name, lowercased.
+  final String tag;
 
-      // Namespace matching
-      // Namespace prefix not directly available in package:html; treat as null for now.
-      final nodePrefix = null;
-      if (nsPrefix == '*') {
-        return true; // any namespace
-      } else if (nsPrefix.isEmpty) {
-        // '|a' matches elements with no namespace prefix
-        return nodePrefix == null || nodePrefix.isEmpty;
-      } else {
-        return nsPrefix == nodePrefix;
-      }
-    } else {
-      // No namespace constraint
-      return nodeTag.toLowerCase() == tag.toLowerCase();
-    }
+  /// The namespace prefix, or null when unconstrained.
+  final String? namespacePrefix;
+
+  /// Creates a type selector.
+  TagSelector(String tag, {this.namespacePrefix}) : tag = tag.toLowerCase();
+
+  @override
+  bool matchElement(Element element, MatchContext context) {
+    if (!namespaceMatches(element, namespacePrefix)) return false;
+    return (element.localName ?? '').toLowerCase() == tag;
   }
 
   @override
   Specificity get specificity => Specificity.typeSelector;
 
   @override
-  String get pseudoElement => '';
-
-  @override
-  String toString() => tag;
+  String toString() => namespacePrefix == null
+      ? escapeCssIdent(tag)
+      : '${_serializeNsPrefix(namespacePrefix!)}|${escapeCssIdent(tag)}';
 }
 
-/// A class selector that matches elements with a given class.
-///
-/// Example: `.foo`, `.bar`
-/// Matches if the element's class attribute contains the class name
-/// as a whitespace-separated token.
-/// Specificity: (0, 1, 0)
-class ClassSelector implements Sel {
+/// A class selector such as `.warning`.
+class ClassSelector extends Sel {
+  /// The class name to match.
   final String className;
-  final String _lowerClassName;
 
-  ClassSelector(this.className) : _lowerClassName = className.toLowerCase();
+  /// Creates a class selector.
+  ClassSelector(this.className);
 
   @override
-  bool match(Node node) {
-    if (node is! Element) return false;
-    final classAttr = node.attributes['class'];
-    if (classAttr == null) return false;
-    // Use cached regex pattern for performance
+  bool matchElement(Element element, MatchContext context) {
+    final classAttr = element.attributes['class'];
+    if (classAttr == null || classAttr.isEmpty) return false;
+    // Audit P1-2: HTML class names are case-SENSITIVE in standards mode.
     for (final c in classAttr.split(_whitespacePattern)) {
-      if (c.toLowerCase() == _lowerClassName) return true;
+      if (c == className) return true;
     }
     return false;
   }
@@ -89,88 +112,76 @@ class ClassSelector implements Sel {
   Specificity get specificity => Specificity.classSelector;
 
   @override
-  String get pseudoElement => '';
-
-  @override
-  String toString() => '.$className';
+  String toString() => '.${escapeCssIdent(className)}';
 }
 
-/// An ID selector that matches an element with a specific ID.
-///
-/// Example: `#header`, `#main`
-/// Specificity: (1, 0, 0)
-class IdSelector implements Sel {
+/// An ID selector such as `#header`.
+class IdSelector extends Sel {
+  /// The ID to match.
   final String id;
 
+  /// Creates an ID selector.
   IdSelector(this.id);
 
   @override
-  bool match(Node node) {
-    if (node is! Element) return false;
-    return node.id == id;
-  }
+  bool matchElement(Element element, MatchContext context) =>
+      element.attributes['id'] == id;
 
   @override
   Specificity get specificity => Specificity.idSelector;
 
   @override
-  String get pseudoElement => '';
-
-  @override
-  String toString() => '#$id';
+  String toString() => '#${escapeCssIdent(id)}';
 }
 
-/// Attribute operator types for attribute selectors.
+/// The operators supported by [AttributeSelector].
 enum AttrOp {
-  /// `[attr]` - presence
+  /// `[attr]` — the attribute is present.
   present,
 
-  /// `[attr=value]` - exact match
+  /// `[attr=value]` — exact match.
   equal,
 
-  /// `[attr~=value]` - whitespace-separated word list includes value
+  /// `[attr~=value]` — whitespace-separated word match.
   includes,
 
-  /// `[attr|=value]` - value or value-*
+  /// `[attr|=value]` — equal to `value`, or starting with `value-`.
   dashMatch,
 
-  /// `[attr^=value]` - starts with
+  /// `[attr^=value]` — prefix match.
   prefix,
 
-  /// `[attr$=value]` - ends with
+  /// `[attr$=value]` — suffix match.
   suffix,
 
-  /// `[attr*=value]` - contains substring
+  /// `[attr*=value]` — substring match.
   substring,
 
-  /// `[attr!=value]` - not equal
+  /// `[attr!=value]` — negated exact match (non-standard).
   notEqual,
 
-  /// `[attr#=regex]` - regex match (non-standard extension)
+  /// `[attr#=regex]` — regular-expression match (non-standard).
   regexMatch,
 }
 
-/// An attribute selector that matches elements based on attribute values.
-///
-/// Examples:
-/// - `[href]` - presence
-/// - `[href="https://example.com"]` - exact match
-/// - `[class~="active"]` - class contains "active"
-/// - `[lang|="en"]` - starts with "en" or "en-"
-/// - `[href^="https"]` - starts with
-/// - `[src$=".png"]` - ends with
-/// - `[title*="warning"]` - contains
-/// - `[data-id#="^[0-9]+$"]` - regex match (non-standard)
-/// - `[type="password" i]` - case-insensitive match (non-standard 'i' flag)
-///
-/// Specificity: (0, 1, 0)
-class AttributeSelector implements Sel {
+/// An attribute selector such as `[href^="https"]`.
+class AttributeSelector extends Sel {
+  /// The attribute name.
   final String attributeName;
+
+  /// The comparison operator.
   final AttrOp operation;
+
+  /// The value being compared against, if the operator takes one.
   final String? value;
+
+  /// The compiled pattern for [AttrOp.regexMatch].
   final RegExp? regexp;
+
+  /// Whether the comparison ignores case (the `i` flag).
   final bool caseInsensitive;
 
+  /// Creates an attribute selector.
   AttributeSelector({
     required this.attributeName,
     required this.operation,
@@ -180,24 +191,27 @@ class AttributeSelector implements Sel {
   });
 
   @override
-  bool match(Node node) {
-    if (node is! Element) return false;
-    final attrValue = node.attributes[attributeName];
-    if (operation == AttrOp.present) {
-      return attrValue != null;
-    }
-    if (attrValue == null) return false;
+  bool matchElement(Element element, MatchContext context) {
+    final attrValue = element.attributes[attributeName];
 
-    final compareValue = value ?? '';
-    final source = attrValue;
-    final pattern = caseInsensitive ? compareValue.toLowerCase() : compareValue;
-    final target = caseInsensitive ? source.toLowerCase() : source;
+    if (operation == AttrOp.present) return attrValue != null;
+
+    // `[attr!=value]` is true when the attribute is absent, matching the
+    // behaviour of the original Go cascadia.
+    if (attrValue == null) return operation == AttrOp.notEqual;
+
+    if (operation == AttrOp.regexMatch) {
+      return regexp != null && regexp!.hasMatch(attrValue);
+    }
+
+    final pattern = caseInsensitive ? (value ?? '').toLowerCase() : value ?? '';
+    final target = caseInsensitive ? attrValue.toLowerCase() : attrValue;
 
     switch (operation) {
       case AttrOp.equal:
         return target == pattern;
       case AttrOp.includes:
-        // Use cached regex pattern for performance
+        if (pattern.isEmpty) return false;
         for (final token in target.split(_whitespacePattern)) {
           if (token == pattern) return true;
         }
@@ -205,19 +219,16 @@ class AttributeSelector implements Sel {
       case AttrOp.dashMatch:
         return target == pattern || target.startsWith('$pattern-');
       case AttrOp.prefix:
-        return target.startsWith(pattern);
+        return pattern.isNotEmpty && target.startsWith(pattern);
       case AttrOp.suffix:
-        return target.endsWith(pattern);
+        return pattern.isNotEmpty && target.endsWith(pattern);
       case AttrOp.substring:
-        return target.contains(pattern);
+        return pattern.isNotEmpty && target.contains(pattern);
       case AttrOp.notEqual:
         return target != pattern;
-      case AttrOp.regexMatch:
-        if (regexp == null) return false;
-        return regexp!.hasMatch(source);
       case AttrOp.present:
-        // Already handled above
-        return true;
+      case AttrOp.regexMatch:
+        return true; // handled above
     }
   }
 
@@ -225,30 +236,24 @@ class AttributeSelector implements Sel {
   Specificity get specificity => Specificity.classSelector;
 
   @override
-  String get pseudoElement => '';
-
-  @override
   String toString() {
-    final name = attributeName;
-    switch (operation) {
-      case AttrOp.present:
-        return '[$name]';
-      case AttrOp.equal:
-        return '[$name="$value"]';
-      case AttrOp.includes:
-        return '[$name~="$value"]';
-      case AttrOp.dashMatch:
-        return '[$name|="$value"]';
-      case AttrOp.prefix:
-        return '[$name^="$value"]';
-      case AttrOp.suffix:
-        return r'[$name$="$value"]';
-      case AttrOp.substring:
-        return '[$name*="$value"]';
-      case AttrOp.notEqual:
-        return '[$name!="$value"]';
-      case AttrOp.regexMatch:
-        return '[$name#=$value]';
+    final name = escapeCssIdent(attributeName);
+    final flag = caseInsensitive ? ' i' : '';
+    if (operation == AttrOp.present) return '[$name]';
+    if (operation == AttrOp.regexMatch) {
+      return '[$name#=/${regexp?.pattern ?? ''}/]';
     }
+    // Audit P2-1: this used to be a raw string, so every suffix selector
+    // serialized to the literal text `[$name$="$value"]`.
+    const ops = <AttrOp, String>{
+      AttrOp.equal: '=',
+      AttrOp.includes: '~=',
+      AttrOp.dashMatch: '|=',
+      AttrOp.prefix: '^=',
+      AttrOp.suffix: r'$=',
+      AttrOp.substring: '*=',
+      AttrOp.notEqual: '!=',
+    };
+    return '[$name${ops[operation]}${escapeCssString(value ?? '')}$flag]';
   }
 }

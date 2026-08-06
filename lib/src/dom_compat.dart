@@ -1,68 +1,68 @@
 import 'package:html/dom.dart';
 
-/// Compatibility extension providing traversal getters for Node.
-///
-/// The `package:html` DOM implementation does not provide `firstChild`,
-/// `nextSibling`, and `previousSibling` directly. This extension derives
-/// them from the `nodes` list and `parentNode`.
+/// Node traversal helpers that `package:html` does not provide directly.
 extension NodeTraversal on Node {
-  /// Returns the first child node, or null if there are no children.
-  Node? get firstChild {
-    final childNodes = nodes;
-    return childNodes.isEmpty ? null : childNodes.first;
-  }
+  /// The first child node, or null when there are none.
+  Node? get firstChild => nodes.isEmpty ? null : nodes.first;
 
-  /// Returns the next sibling node, or null if this is the last sibling.
+  /// The last child node, or null when there are none.
+  Node? get lastChild => nodes.isEmpty ? null : nodes.last;
+
+  /// The next sibling node, or null when this is the last.
   Node? get nextSibling {
-    final parent = parentNode;
-    if (parent == null) return null;
-    final siblings = parent.nodes;
-    final index = siblings.indexOf(this);
-    if (index == -1 || index + 1 >= siblings.length) return null;
+    final siblings = parentNode?.nodes;
+    if (siblings == null) return null;
+    final index = _indexIn(siblings);
+    if (index < 0 || index + 1 >= siblings.length) return null;
     return siblings[index + 1];
   }
 
-  /// Returns the previous sibling node, or null if this is the first sibling.
+  /// The previous sibling node, or null when this is the first.
   Node? get previousSibling {
-    final parent = parentNode;
-    if (parent == null) return null;
-    final siblings = parent.nodes;
-    final index = siblings.indexOf(this);
+    final siblings = parentNode?.nodes;
+    if (siblings == null) return null;
+    final index = _indexIn(siblings);
     if (index <= 0) return null;
     return siblings[index - 1];
   }
+
+  int _indexIn(List<Node> siblings) {
+    for (var i = 0; i < siblings.length; i++) {
+      if (identical(siblings[i], this)) return i;
+    }
+    return -1;
+  }
 }
 
-/// Extension to get only element siblings.
-///
-/// Provides previousElementSibling and nextElementSibling for Node/Element.
+/// Element-only sibling traversal.
 extension ElementSibling on Node {
-  /// Returns the previous sibling that is an [Element], or null.
+  /// The closest preceding sibling that is an [Element].
   Element? get previousElementSibling {
-    var sibling = previousSibling;
-    while (sibling != null) {
-      if (sibling is Element) return sibling;
-      sibling = sibling.previousSibling;
+    final parent = parentNode;
+    if (parent == null) return null;
+    Element? last;
+    for (final child in parent.nodes) {
+      if (identical(child, this)) return last;
+      if (child is Element) last = child;
     }
     return null;
   }
 
-  /// Returns the next sibling that is an [Element], or null.
+  /// The closest following sibling that is an [Element].
   Element? get nextElementSibling {
-    var sibling = nextSibling;
-    while (sibling != null) {
-      if (sibling is Element) return sibling;
-      sibling = sibling.nextSibling;
+    final parent = parentNode;
+    if (parent == null) return null;
+    var seen = false;
+    for (final child in parent.nodes) {
+      if (seen && child is Element) return child;
+      if (identical(child, this)) seen = true;
     }
     return null;
   }
 }
 
-/// Extension to provide `tagName` for Element, mirroring the standard DOM API.
-///
-/// In `package:html`, Element exposes `localName`. This getter provides
-/// a `tagName` aliases for compatibility.
+/// A `tagName` alias for [Element.localName].
 extension ElementTagName on Element {
-  /// Returns the tag name of this element (lowercase for HTML elements).
-  String get tagName => localName ?? '';
+  /// The lowercased tag name of this element.
+  String get tagName => (localName ?? '').toLowerCase();
 }
